@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <!-- システムメディアコントロール（WinRT の API）を使うため、Windows 10 の SDK を対象にする。 -->
+    <TargetFramework>net10.0-windows10.0.19041.0</TargetFramework>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <PublishAot>true</PublishAot>
+    <AvaloniaUseCompiledBindingsByDefault>true</AvaloniaUseCompiledBindingsByDefault>
+    <SatelliteResourceLanguages>ja</SatelliteResourceLanguages>
+    <!--
+      tools/Make-AppIcon.ps1 で artifacts/img/splkn_600.png から作る。ウィンドウのアイコンにも、ここで実行ファイルに
+      埋め込まれたものが使われる（Window.Icon は設定しない。設定するには同じ画像をアプリのリソースとしても持つ必要がある）。
+    -->
+    <ApplicationIcon>app.ico</ApplicationIcon>
+    <Version>0.1.0</Version>
+    <Authors>Nyxtrope / yukino</Authors>
+    <Copyright>Copyright (c) 2026 Nyxtrope (yukino)</Copyright>
+    <!-- MainWindow は依存を引数で受け取るため公開の既定コンストラクタを持たない。実行時ローダーからは生成しないので問題ない。 -->
+    <NoWarn>$(NoWarn);AVLN3001</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="12.1.4" />
+    <PackageReference Include="Avalonia.Desktop" Version="12.1.4" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.1.4" />
+  </ItemGroup>
+
+  <!-- 設定画面のバージョン情報のページに出すもの。名前（LogicalName）で読む（SettingsWindow.OpenResource）。 -->
+  <ItemGroup>
+    <EmbeddedResource Include="about.png" LogicalName="about.png" />
+    <EmbeddedResource Include="..\..\LICENSE" LogicalName="LICENSE.txt" />
+    <EmbeddedResource Include="..\..\THIRD-PARTY-NOTICES.txt" LogicalName="THIRD-PARTY-NOTICES.txt" />
+    <EmbeddedResource Include="..\..\docs\RELEASE_NOTES.md" LogicalName="RELEASE_NOTES.md" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\SoundPlayerChiyomaru.Core\SoundPlayerChiyomaru.Core.csproj" />
+  </ItemGroup>
+
+</Project>

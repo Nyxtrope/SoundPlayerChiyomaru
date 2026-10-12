@@ -1,0 +1,178 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        x:Class="SoundPlayerChiyomaru.SettingsWindow"
+        Title="設定"
+        Width="680"
+        Height="520"
+        MinWidth="560"
+        MinHeight="360"
+        ShowInTaskbar="False"
+        CanMinimize="False"
+        WindowStartupLocation="CenterOwner">
+    <!--
+      変更はその場で反映して保存する（「OK」「キャンセル」は置かない）。
+      各部品の状態は、コードで設定から読み、操作されたら設定へ書く（SettingsWindow.axaml.cs）。メニューなど他の場所から
+      同じ設定が変えられたときに、ここの表示を合わせ直すため。
+    -->
+    <Window.Styles>
+        <Style Selector="TextBlock.section">
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Margin" Value="0,18,0,6" />
+        </Style>
+        <Style Selector="TextBlock.first">
+            <Setter Property="Margin" Value="0,0,0,6" />
+        </Style>
+        <Style Selector="TextBlock.note">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Opacity" Value="0.7" />
+            <Setter Property="TextWrapping" Value="Wrap" />
+            <Setter Property="Margin" Value="0,4,0,0" />
+        </Style>
+        <Style Selector="ComboBox">
+            <Setter Property="MinWidth" Value="260" />
+        </Style>
+        <Style Selector="ListBox#PageList ListBoxItem">
+            <Setter Property="Padding" Value="14,8" />
+        </Style>
+    </Window.Styles>
+
+    <Grid ColumnDefinitions="170,*">
+        <!-- 選択を外せると、どのページも出ていない状態になる。 -->
+        <ListBox x:Name="PageList" Padding="0,12,0,0" SelectionMode="AlwaysSelected" SelectionChanged="OnPageChanged">
+            <ListBoxItem Content="出力" />
+            <ListBoxItem Content="プレイリスト" />
+            <ListBoxItem Content="起動と関連付け" />
+            <ListBoxItem Content="表示" />
+            <ListBoxItem Content="バージョン情報" />
+        </ListBox>
+
+        <ScrollViewer Grid.Column="1">
+            <Panel x:Name="Pages" Margin="20,16,20,20">
+                <StackPanel>
+                    <TextBlock Classes="section first" Text="出力デバイス" />
+                    <ComboBox x:Name="DeviceBox" SelectionChanged="OnDeviceChanged" />
+
+                    <TextBlock Classes="section" Text="出力モード" />
+                    <RadioButton x:Name="SharedRadio" GroupName="OutputMode" Content="共有モード（既定）" IsCheckedChanged="OnOutputModeChanged" />
+                    <RadioButton x:Name="ExclusiveRadio" GroupName="OutputMode" Content="排他モード（ビットパーフェクト再生用）" IsCheckedChanged="OnOutputModeChanged" />
+                    <TextBlock Classes="note" Text="排他モードの間は、他のアプリの音（通知音を含む）がこのデバイスから鳴らなくなります。" />
+
+                    <TextBlock Classes="section" Text="ReplayGain" />
+                    <ComboBox x:Name="ReplayGainBox" SelectionChanged="OnReplayGainChanged">
+                        <ComboBoxItem Content="オフ（既定）" />
+                        <ComboBoxItem Content="トラック（曲ごとに揃える）" />
+                        <ComboBoxItem Content="アルバム（アルバムの中の音量差を保つ）" />
+                    </ComboBox>
+                    <TextBlock Classes="note" Text="有効な間は音量を調整するので、ビットパーフェクトではなくなります。" />
+
+                    <TextBlock Classes="section" Text="バッファの長さ" />
+                    <ComboBox x:Name="BufferBox" SelectionChanged="OnBufferChanged" />
+                    <TextBlock Classes="note" Text="短いほど操作への反応が速く、長いほど音が途切れにくくなります。デバイスが受け付けない長さを選ぶと、排他モードでは共有モードに切り替わります。" />
+
+                    <TextBlock Classes="section" Text="出力のビット深度（排他モード）" />
+                    <ComboBox x:Name="BitDepthBox" SelectionChanged="OnBitDepthChanged" />
+                    <TextBlock Classes="note" Text="通常は「自動」のままにします。デバイスによって音が出ないときの切り分けに使えます。上限が曲のビット数より小さいと、ビットパーフェクトではなくなります。" />
+
+                    <TextBlock Classes="section" Text="今の出力" />
+                    <TextBlock x:Name="OutputStatusText" Classes="note" />
+                </StackPanel>
+
+                <StackPanel IsVisible="False">
+                    <TextBlock Classes="section first" Text="曲の追加（既定: チェックなし）" />
+                    <CheckBox x:Name="ExcludeDuplicatesBox" Content="すでにプレイリストにある曲は追加しない" IsCheckedChanged="OnExcludeDuplicatesChanged" />
+                    <TextBlock Classes="note" Text="ファイルやフォルダを追加するときに、同じファイルを除きます。同じファイルを 2 回入れたいときは、オフにします。「開く」でプレイリストを置き換えるときは除きません。" />
+
+                    <TextBlock Classes="section" Text="表示する列" />
+                    <!-- Tag は PlaylistColumn の名前。タイトルの列は常に表示するので、ここには出さない。 -->
+                    <WrapPanel x:Name="ColumnBoxes">
+                        <CheckBox Content="曲順（#）" Tag="Order" Margin="0,0,18,0" IsCheckedChanged="OnColumnChanged" />
+                        <CheckBox Content="トラック番号" Tag="TrackNumber" Margin="0,0,18,0" IsCheckedChanged="OnColumnChanged" />
+                        <CheckBox Content="アーティスト" Tag="Artist" Margin="0,0,18,0" IsCheckedChanged="OnColumnChanged" />
+                        <CheckBox Content="アルバム" Tag="Album" Margin="0,0,18,0" IsCheckedChanged="OnColumnChanged" />
+                        <CheckBox Content="アルバムアーティスト" Tag="AlbumArtist" Margin="0,0,18,0" IsCheckedChanged="OnColumnChanged" />
+                        <CheckBox Content="時間" Tag="Duration" Margin="0,0,18,0" IsCheckedChanged="OnColumnChanged" />
+                        <CheckBox Content="ファイル名" Tag="FileName" Margin="0,0,18,0" IsCheckedChanged="OnColumnChanged" />
+                    </WrapPanel>
+                    <Button Content="幅と順番を既定に戻す" Margin="0,8,0,0" Click="OnResetColumnsClick" />
+                    <TextBlock Classes="note" Text="幅と順番は、一覧の見出しをドラッグして変えられます。見出しを右クリックして変えることもできます。" />
+
+                    <TextBlock Classes="section" Text="プレイリストの保存（既定: チェックなし）" />
+                    <CheckBox x:Name="RelativePathsBox" Content="曲を相対パスで書く" IsCheckedChanged="OnRelativePathsChanged" />
+                    <TextBlock Classes="note" Text="プレイリストファイルと同じドライブにある曲を、プレイリストファイルの場所からの相対パスで書きます。" />
+                </StackPanel>
+
+                <StackPanel IsVisible="False">
+                    <TextBlock Classes="section first" Text="他から起動したときの動作" />
+                    <!-- Tag は ExternalOpenAction の値。 -->
+                    <StackPanel x:Name="ExternalOpenRadios">
+                        <RadioButton GroupName="ExternalOpen" Tag="0" Content="プレイリストを置き換えて再生（既定）" IsCheckedChanged="OnExternalOpenChanged" />
+                        <RadioButton GroupName="ExternalOpen" Tag="1" Content="末尾に追加" IsCheckedChanged="OnExternalOpenChanged" />
+                        <RadioButton GroupName="ExternalOpen" Tag="2" Content="追加して再生" IsCheckedChanged="OnExternalOpenChanged" />
+                    </StackPanel>
+                    <TextBlock Classes="note" Text="このアプリを起動している間に、エクスプローラーなどからファイルを開いたときの動作です。再生の操作の部分（プレイリストの外）にファイルをドロップしたときも、この動作になります。「ファイル」メニューの「開く」の動作は変わりません（常に置き換えて再生）。" />
+
+                    <TextBlock Classes="section" Text="ファイルの関連付け" />
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Button Content="登録する" Click="OnRegisterAssociationClick" />
+                        <Button Content="解除する" Click="OnUnregisterAssociationClick" />
+                    </StackPanel>
+                    <TextBlock Classes="note" Text="曲とプレイリストのファイルを開くアプリの候補として、このアプリを Windows に登録します。" />
+                    <!-- 登録・解除の結果。上の説明と区別できるよう、間を空けて普通の文字で出す。 -->
+                    <TextBlock x:Name="AssociationStatusText" Margin="0,16,0,0" TextWrapping="Wrap" />
+                </StackPanel>
+
+                <StackPanel IsVisible="False">
+                    <TextBlock Classes="section first" Text="配色" />
+                    <!-- 並びは AppTheme の値の順。 -->
+                    <ComboBox x:Name="ThemeBox" SelectionChanged="OnThemeChanged">
+                        <ComboBoxItem Content="Chiyomaru: System（既定）" />
+                        <ComboBoxItem Content="Chiyomaru: Light" />
+                        <ComboBoxItem Content="Chiyomaru: Dark" />
+                        <ComboBoxItem Content="Windows: System" />
+                        <ComboBoxItem Content="Windows: Light" />
+                        <ComboBoxItem Content="Windows: Dark" />
+                    </ComboBox>
+                    <TextBlock Classes="note" Text="System は、明るい・暗いを Windows の設定に合わせます。" />
+
+                    <TextBlock Classes="section" Text="ウィンドウ（既定: チェックなし）" />
+                    <CheckBox x:Name="AlwaysOnTopBox" Content="常に手前に表示" IsCheckedChanged="OnAlwaysOnTopChanged" />
+                </StackPanel>
+
+                <DockPanel IsVisible="False">
+                    <StackPanel DockPanel.Dock="Top" Orientation="Horizontal" Spacing="16">
+                        <Image x:Name="AboutImage" Width="96" Height="96" />
+                        <StackPanel VerticalAlignment="Center" Spacing="2">
+                            <TextBlock Text="Sound Player Chiyomaru" FontSize="18" FontWeight="SemiBold" />
+                            <TextBlock x:Name="VersionText" />
+                            <TextBlock Text="作者: Nyxtrope / yukino" />
+                            <TextBlock Text="ライセンス: MIT License" />
+                        </StackPanel>
+                    </StackPanel>
+                    <ComboBox x:Name="DocumentBox" DockPanel.Dock="Top" Margin="0,16,0,8" SelectionChanged="OnDocumentChanged">
+                        <ComboBoxItem Content="リリースノート" />
+                        <ComboBoxItem Content="このアプリのライセンス" />
+                        <ComboBoxItem Content="依存ライブラリのライセンス" />
+                    </ComboBox>
+                    <!--
+                      文書は 1 行ずつの一覧にして、見えている行だけを組む。依存ライブラリのライセンス文は 15 万文字あり、
+                      1 つのテキスト欄に入れると、表示するだけで約 18MB のメモリを使った。
+                    -->
+                    <ListBox x:Name="DocumentList" MinHeight="240" BorderThickness="1" BorderBrush="{DynamicResource SystemControlForegroundBaseLowBrush}">
+                        <ListBox.Styles>
+                            <Style Selector="ListBoxItem">
+                                <Setter Property="Padding" Value="10,1" />
+                                <Setter Property="MinHeight" Value="0" />
+                                <Setter Property="IsHitTestVisible" Value="False" />
+                            </Style>
+                        </ListBox.Styles>
+                        <ListBox.ItemTemplate>
+                            <DataTemplate x:DataType="x:String">
+                                <TextBlock Text="{Binding}" FontSize="12" TextWrapping="Wrap" MinHeight="16" />
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </DockPanel>
+            </Panel>
+        </ScrollViewer>
+    </Grid>
+</Window>

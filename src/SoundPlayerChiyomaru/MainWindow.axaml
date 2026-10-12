@@ -1,0 +1,486 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="using:SoundPlayerChiyomaru"
+        xmlns:playlists="using:SoundPlayerChiyomaru.Core.Playlists"
+        x:Class="SoundPlayerChiyomaru.MainWindow"
+        x:DataType="local:MainWindowViewModel"
+        Title="{Binding WindowTitle}"
+        Width="600"
+        Height="480"
+        MinWidth="520"
+        MinHeight="260"
+        DragDrop.AllowDrop="True">
+    <Window.Resources>
+        <!-- 操作のアイコン。画像やアイコンフォントを読み込まずに済むよう、24×24 の枠に描いた図形で持つ。 -->
+        <StreamGeometry x:Key="PlayIcon">M8,5 L19,12 L8,19 Z</StreamGeometry>
+        <StreamGeometry x:Key="PauseIcon">M6,5 H10 V19 H6 Z M14,5 H18 V19 H14 Z</StreamGeometry>
+        <StreamGeometry x:Key="StopIcon">M6,6 H18 V18 H6 Z</StreamGeometry>
+        <StreamGeometry x:Key="PreviousIcon">M5,5 H7.5 V19 H5 Z M20,5 L9,12 L20,19 Z</StreamGeometry>
+        <StreamGeometry x:Key="NextIcon">M16.5,5 H19 V19 H16.5 Z M4,5 L15,12 L4,19 Z</StreamGeometry>
+        <StreamGeometry x:Key="VolumeIcon">M3,9 H7 L12,5 V19 L7,15 H3 Z M14.5,8 A4.6,4.6 0 0 1 14.5,16 V14 A2.6,2.6 0 0 0 14.5,10 Z M14.5,4.2 A8.4,8.4 0 0 1 14.5,19.8 V17.7 A6.4,6.4 0 0 0 14.5,6.3 Z</StreamGeometry>
+        <StreamGeometry x:Key="MutedIcon">M3,9 H7 L12,5 V19 L7,15 H3 Z M14.6,9.4 L16,8 L22,14 L20.6,15.4 Z M20.6,8 L22,9.4 L16,15.4 L14.6,14 Z</StreamGeometry>
+        <StreamGeometry x:Key="NoteIcon">M9,4 H19 V8 H11 V16.5 A3.5,3.5 0 1 1 9,13.3 Z</StreamGeometry>
+        <StreamGeometry x:Key="PinIcon">M9,3 H15 V5 H14 V11 L17,14 V15.5 H12.8 V21 L12,22 L11.2,21 V15.5 H7 V14 L10,11 V5 H9 Z</StreamGeometry>
+        <StreamGeometry x:Key="MiniIcon">M4,5 H20 V19 H4 Z M6,7 V17 H18 V7 Z M7,8 H17 V11 H7 Z</StreamGeometry>
+
+        <!-- 再生モードのアイコン。並びは PlayMode の値の順（MainWindow.ModeIconKeys）。 -->
+        <StreamGeometry x:Key="ModeNormalIcon">M3,11 H15.2 L11.6,7.4 L13,6 L19,12 L13,18 L11.6,16.6 L15.2,13 H3 Z</StreamGeometry>
+        <StreamGeometry x:Key="ModeRepeatOneIcon">M7,7 H17 V10 L21,6 L17,2 V5 H5 V11 H7 Z M17,17 H7 V14 L3,18 L7,22 V19 H19 V13 H17 Z M11,9.5 H13 V15 H11.6 V11 H10.6 V10 Z</StreamGeometry>
+        <StreamGeometry x:Key="ModeRepeatAllIcon">M7,7 H17 V10 L21,6 L17,2 V5 H5 V11 H7 Z M17,17 H7 V14 L3,18 L7,22 V19 H19 V13 H17 Z</StreamGeometry>
+        <StreamGeometry x:Key="ModeRandomIcon">M3,6 H8.2 L16.8,16 H18 V13.5 L21.5,17 L18,20.5 V18 H15.8 L7.2,8 H3 Z M3,16 H7.2 L9.3,13.6 L10.6,15.2 L8.2,18 H3 Z M13.4,8.8 L15.8,6 H18 V3.5 L21.5,7 L18,10.5 V8 H16.8 L14.7,10.4 Z</StreamGeometry>
+        <StreamGeometry x:Key="ModeOneShotIcon">M3,11 H12.2 L8.6,7.4 L10,6 L16,12 L10,18 L8.6,16.6 L12.2,13 H3 Z M18,6 H20 V18 H18 Z</StreamGeometry>
+
+        <!-- スライダーのつまみを、丸ではなく縦長の四角にする（テーマが参照する大きさと角の丸みを上書きする）。 -->
+        <x:Double x:Key="SliderHorizontalThumbWidth">8</x:Double>
+        <x:Double x:Key="SliderHorizontalThumbHeight">18</x:Double>
+        <CornerRadius x:Key="SliderThumbCornerRadius">2</CornerRadius>
+    </Window.Resources>
+    <Window.Styles>
+        <Style Selector="ListBox#PlaylistBox ListBoxItem">
+            <Setter Property="Padding" Value="10,4" />
+        </Style>
+        <Style Selector="TextBlock.current">
+            <Setter Property="FontWeight" Value="Bold" />
+            <!-- 独自の配色では副の色。Windows の配色では普通の文字の色（太字だけで示す）。ThemeManager が設定する。 -->
+            <Setter Property="Foreground" Value="{DynamicResource ChiyomaruCurrentTextBrush}" />
+        </Style>
+        <Style Selector="Grid.missing">
+            <Setter Property="Opacity" Value="0.45" />
+        </Style>
+        <Style Selector="TextBlock.header">
+            <Setter Property="FontSize" Value="12" />
+            <Setter Property="Opacity" Value="0.7" />
+        </Style>
+        <Style Selector="TextBlock.message">
+            <Setter Property="FontSize" Value="12" />
+        </Style>
+        <Style Selector="TextBlock.message.error">
+            <Setter Property="Foreground" Value="#E0575B" />
+        </Style>
+        <!-- 列の間隔。列を隠したときに間隔だけが残らないよう、列ではなく中身の側に持たせる。 -->
+        <Style Selector="Grid.columns > TextBlock">
+            <Setter Property="Margin" Value="0,0,8,0" />
+        </Style>
+        <!-- 見出しでは、その間隔の中央に区切り線を引く（MainWindow.SeparatorOffset と合わせること）。 -->
+        <Style Selector="Border.header">
+            <Setter Property="Margin" Value="0,0,4,0" />
+            <Setter Property="Padding" Value="0,0,4,0" />
+            <Setter Property="BorderThickness" Value="0,0,1,0" />
+            <Setter Property="BorderBrush" Value="{DynamicResource SystemControlForegroundBaseLowBrush}" />
+        </Style>
+        <Style Selector="Border.header.last">
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="Button.transport">
+            <Setter Property="Width" Value="36" />
+            <Setter Property="Height" Value="32" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Focusable" Value="False" />
+        </Style>
+        <Style Selector="Button.transport PathIcon">
+            <Setter Property="Width" Value="16" />
+            <Setter Property="Height" Value="16" />
+        </Style>
+        <!-- 再生/一時停止は、いちばんよく使うので大きく目立たせる。停止と再生モードは控えめにする。 -->
+        <Style Selector="Button.transport.primary">
+            <Setter Property="Width" Value="52" />
+            <Setter Property="Height" Value="40" />
+        </Style>
+        <Style Selector="Button.transport.primary PathIcon">
+            <Setter Property="Width" Value="22" />
+            <Setter Property="Height" Value="22" />
+        </Style>
+        <Style Selector="Button.transport.minor">
+            <Setter Property="Width" Value="30" />
+            <Setter Property="Height" Value="28" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="Button.transport.minor PathIcon">
+            <Setter Property="Width" Value="13" />
+            <Setter Property="Height" Value="13" />
+            <Setter Property="Opacity" Value="0.85" />
+        </Style>
+        <!-- ミュートの間は、音量のスライダーを薄くする（位置は、解除したときに戻る音量を示している）。 -->
+        <Style Selector="Slider.muted">
+            <Setter Property="Opacity" Value="0.4" />
+        </Style>
+        <Style Selector="ToggleButton.tool">
+            <Setter Property="Width" Value="26" />
+            <Setter Property="Height" Value="24" />
+            <Setter Property="Padding" Value="0" />
+            <Setter Property="Focusable" Value="False" />
+            <Setter Property="Background" Value="Transparent" />
+            <Setter Property="BorderThickness" Value="0" />
+        </Style>
+        <Style Selector="ToggleButton.tool PathIcon">
+            <Setter Property="Width" Value="14" />
+            <Setter Property="Height" Value="14" />
+        </Style>
+        <!-- 高さは、隣のボタン（ToggleButton.tool）と同じにする。 -->
+        <Style Selector="Border.badge">
+            <Setter Property="Background" Value="{DynamicResource ChiyomaruBadgeBrush}" />
+            <Setter Property="CornerRadius" Value="3" />
+            <Setter Property="Height" Value="24" />
+            <Setter Property="Padding" Value="7,0" />
+        </Style>
+        <Style Selector="Border.badge > TextBlock">
+            <Setter Property="VerticalAlignment" Value="Center" />
+            <Setter Property="Foreground" Value="{DynamicResource ChiyomaruOnBadgeBrush}" />
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="FontWeight" Value="Bold" />
+        </Style>
+        <Style Selector="Border.badge.warning">
+            <Setter Property="Background" Value="{DynamicResource ChiyomaruSecondaryBrush}" />
+        </Style>
+        <Style Selector="Border.badge.warning > TextBlock">
+            <Setter Property="Foreground" Value="{DynamicResource ChiyomaruOnSecondaryBrush}" />
+        </Style>
+    </Window.Styles>
+
+    <DockPanel>
+        <Menu x:Name="MainMenu" DockPanel.Dock="Top" IsVisible="{Binding !MiniMode}">
+            <MenuItem Header="ファイル(_F)">
+                <MenuItem Header="開く(_O)..." InputGesture="Ctrl+O" Click="OnOpenClick" />
+                <MenuItem Header="ファイルを追加(_A)..." Click="OnAddFilesClick" />
+                <MenuItem Header="フォルダを追加(_D)..." Click="OnAddFolderClick" />
+                <Separator />
+                <MenuItem Header="プレイリストを上書き保存(_S)" InputGesture="Ctrl+S" Click="OnSaveClick" />
+                <MenuItem Header="プレイリストに名前を付けて保存(_N)..." InputGesture="Ctrl+Shift+S" Click="OnSaveAsClick" />
+                <Separator />
+                <!-- 出力デバイス・排他モード・ReplayGain 以外の設定は、設定画面に置く（SettingsWindow）。 -->
+                <!-- キーの表示は「Ctrl+OemComma」になるので、コードで「Ctrl+,」に書き換える（MainWindow のコンストラクター）。 -->
+                <MenuItem x:Name="SettingsMenuItem" Header="設定(_T)..." InputGesture="Ctrl+OemComma" Click="OnSettingsClick" />
+                <Separator />
+                <MenuItem Header="終了(_X)" Click="OnExitClick" />
+            </MenuItem>
+            <MenuItem Header="編集(_E)">
+                <MenuItem Header="元に戻す(_U)" InputGesture="Ctrl+Z" IsEnabled="{Binding CanUndo}" Click="OnUndoClick" />
+                <MenuItem Header="やり直し(_R)" InputGesture="Ctrl+Y" IsEnabled="{Binding CanRedo}" Click="OnRedoClick" />
+                <Separator />
+                <!-- 「削除」だけでは、ファイルを消すように読める。 -->
+                <MenuItem Header="プレイリストから削除(_D)" InputGesture="Delete" Click="OnRemoveClick" />
+                <MenuItem Header="プレイリストからすべて削除(_C)" IsEnabled="{Binding HasItems}" Click="OnClearClick" />
+                <MenuItem Header="すべて選択(_A)" InputGesture="Ctrl+A" Click="OnSelectAllClick" />
+                <Separator />
+                <MenuItem Header="並べ替え(_S)">
+                    <MenuItem Header="ファイル名" Tag="FileName" Click="OnSortClick" />
+                    <MenuItem Header="タイトル" Tag="Title" Click="OnSortClick" />
+                    <MenuItem Header="アーティスト" Tag="Artist" Click="OnSortClick" />
+                    <MenuItem Header="アルバムとトラック番号" Tag="Album" Click="OnSortClick" />
+                    <MenuItem Header="フルパス" Tag="Path" Click="OnSortClick" />
+                    <MenuItem Header="曲順（#）" Tag="Order" Click="OnSortClick" />
+                </MenuItem>
+                <MenuItem Header="シャッフル(_H)" IsEnabled="{Binding HasItems}" Click="OnShuffleClick" />
+                <MenuItem Header="現在の曲順でリナンバリング(_N)" IsEnabled="{Binding HasItems}" Click="OnRenumberClick" />
+            </MenuItem>
+            <!-- キーは OnPreviewKeyDown で受ける。ここの表記は案内のためのもの。 -->
+            <MenuItem Header="再生(_P)">
+                <MenuItem Header="再生 / 一時停止(_P)" InputGesture="Space" IsEnabled="{Binding CanPlayPause}" Click="OnPlayPauseClick" />
+                <MenuItem Header="停止(_S)" InputGesture="Ctrl+Space" IsEnabled="{Binding HasTrack}" Click="OnStopClick" />
+                <Separator />
+                <MenuItem Header="次の曲(_N)" InputGesture="Ctrl+Right" IsEnabled="{Binding HasItems}" Click="OnNextClick" />
+                <MenuItem Header="前の曲(_B)" InputGesture="Ctrl+Left" IsEnabled="{Binding HasItems}" Click="OnPreviousClick" />
+                <Separator />
+                <MenuItem Header="5 秒進む(_F)" InputGesture="Right" IsEnabled="{Binding HasTrack}" Click="OnSeekForwardClick" />
+                <MenuItem Header="5 秒戻る(_R)" InputGesture="Left" IsEnabled="{Binding HasTrack}" Click="OnSeekBackClick" />
+                <Separator />
+                <MenuItem Header="音量を上げる(_U)" InputGesture="Ctrl+Up" Click="OnVolumeUpClick" />
+                <MenuItem Header="音量を下げる(_D)" InputGesture="Ctrl+Down" Click="OnVolumeDownClick" />
+                <MenuItem Header="ミュート(_M)" ToggleType="CheckBox" IsChecked="{Binding IsMuted, Mode=OneWay}" Click="OnMuteClick" />
+            </MenuItem>
+            <MenuItem Header="表示(_V)">
+                <!-- チェックの切り替えはクリックで行う。IsChecked を双方向にバインドしても、メニューでの操作は設定に書き戻されなかった。 -->
+                <MenuItem Header="ミニモード(_M)"
+                          InputGesture="Ctrl+M"
+                          ToggleType="CheckBox"
+                          IsChecked="{Binding MiniMode, Mode=OneWay}"
+                          Click="OnMiniModeClick" />
+                <MenuItem Header="常に手前に表示(_T)"
+                          InputGesture="Ctrl+T"
+                          ToggleType="CheckBox"
+                          IsChecked="{Binding AlwaysOnTop, Mode=OneWay}"
+                          Click="OnAlwaysOnTopClick" />
+            </MenuItem>
+            <!-- 中身は開くたびに、その時点でつながっているデバイスから作る。 -->
+            <MenuItem x:Name="OutputMenu" Header="出力(_O)" SubmenuOpened="OnOutputMenuOpened">
+                <MenuItem Header="既定のデバイス" />
+            </MenuItem>
+        </Menu>
+
+        <!-- ミニモードではウィンドウの枠がないので、ここをつかんで動かし、右クリックのメニューで元に戻す・閉じる。 -->
+        <Border x:Name="HeaderPanel"
+                DockPanel.Dock="Top"
+                Background="Transparent"
+                PointerPressed="OnHeaderPointerPressed">
+            <Border.ContextMenu>
+                <ContextMenu>
+                    <MenuItem Header="ミニモード"
+                              ToggleType="CheckBox"
+                              IsChecked="{Binding MiniMode, Mode=OneWay}"
+                              Click="OnMiniModeClick" />
+                    <MenuItem Header="常に手前に表示"
+                              ToggleType="CheckBox"
+                              IsChecked="{Binding AlwaysOnTop, Mode=OneWay}"
+                              Click="OnAlwaysOnTopClick" />
+                    <Separator />
+                    <MenuItem Header="閉じる" Click="OnExitClick" />
+                </ContextMenu>
+            </Border.ContextMenu>
+        <Grid Margin="12,6,12,8" ColumnDefinitions="Auto,*" ColumnSpacing="12">
+            <!-- 大きさは MainWindow.ArtworkSize と合わせること。 -->
+            <!-- 右側（曲の情報と操作）の高さ（約 162）に合わせた大きさ。少しずれても片側だけ空かないよう、上下の中央に置く。 -->
+            <Border Width="160"
+                    Height="160"
+                    VerticalAlignment="Center"
+                    CornerRadius="4"
+                    ClipToBounds="True"
+                    Background="#1E808080">
+                <Panel>
+                    <PathIcon Data="{StaticResource NoteIcon}"
+                              Width="44"
+                              Height="44"
+                              Opacity="0.3"
+                              IsVisible="{Binding !HasArtwork}" />
+                    <Image Source="{Binding Artwork}" Stretch="Uniform" />
+                </Panel>
+            </Border>
+
+            <Grid Grid.Column="1" RowDefinitions="Auto,Auto,Auto,*,Auto,Auto" RowSpacing="3">
+                <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="6">
+                    <!-- 1 行目は「タイトル - アーティスト」。長くて収まらないときは、横に流して全体を読めるようにする。 -->
+                    <local:MarqueeText VerticalAlignment="Center">
+                        <TextBlock Text="{Binding TrackTitle}" FontSize="15" FontWeight="SemiBold" />
+                    </local:MarqueeText>
+                    <Border Grid.Column="1"
+                            Classes="badge"
+                            Classes.warning="{Binding IsBadgeWarning}"
+                            IsVisible="{Binding IsBadgeVisible}"
+                            VerticalAlignment="Center"
+                            ToolTip.Tip="{Binding BadgeToolTip}">
+                        <TextBlock Text="{Binding BadgeText}" />
+                    </Border>
+                    <ToggleButton Grid.Column="2"
+                                  Classes="tool"
+                                  IsChecked="{Binding AlwaysOnTop}"
+                                  ToolTip.Tip="常に手前に表示 (Ctrl+T)">
+                        <PathIcon Data="{StaticResource PinIcon}" />
+                    </ToggleButton>
+                    <ToggleButton Grid.Column="3"
+                                  Classes="tool"
+                                  IsChecked="{Binding MiniMode}"
+                                  ToolTip.Tip="ミニモード (Ctrl+M)">
+                        <PathIcon Data="{StaticResource MiniIcon}" />
+                    </ToggleButton>
+                </Grid>
+                <!--
+                  2 行目は「アルバム - アルバムアーティスト」。どちらもタグにない曲では空になるが、行の高さは常に確保する。
+                  曲によって出したり消したりすると、曲が切り替わるたびにプレイリストの位置やミニモードのウィンドウの高さが変わる。
+                -->
+                <local:MarqueeText Grid.Row="1" MinHeight="17">
+                    <TextBlock Text="{Binding AlbumText}" FontSize="12.5" Opacity="0.85" />
+                </local:MarqueeText>
+                <TextBlock Grid.Row="2"
+                           Text="{Binding FormatText}"
+                           FontSize="11.5"
+                           Opacity="0.65"
+                           TextTrimming="CharacterEllipsis" />
+                <Grid Grid.Row="4" ColumnDefinitions="*,Auto" ColumnSpacing="10">
+                    <!-- スライダーにフォーカスを持たせない。持たせると、空白キーや矢印キーがスライダーに取られて再生の操作に使えなくなる。 -->
+                    <Slider Minimum="0"
+                            Maximum="{Binding DurationSeconds}"
+                            Value="{Binding PositionSeconds}"
+                            Focusable="False"
+                            IsEnabled="{Binding HasTrack}" />
+                    <TextBlock Grid.Column="1"
+                               Text="{Binding TimeText}"
+                               VerticalAlignment="Center" />
+                </Grid>
+                <!--
+                  幅が足りないときは、音量のスライダーが縮む（最後の 2 列で余りを分け、スライダーの幅は上限と下限の間で変わる）。
+                  ウィンドウの最小の幅（MinWidth）は、スライダーが下限の幅でもこの行が収まる大きさにしてある。
+                  ボタンを足したり下限を変えたりしたら、最小の幅も見直すこと（足りないと、スライダーが右の余白にはみ出す）。
+                -->
+                <Grid Grid.Row="5" ColumnSpacing="6">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="4*" MinWidth="60" MaxWidth="110" />
+                    </Grid.ColumnDefinitions>
+                    <Button Classes="transport" IsEnabled="{Binding HasItems}" ToolTip.Tip="前の曲 (Ctrl+←)" Click="OnPreviousClick">
+                        <PathIcon Data="{StaticResource PreviousIcon}" />
+                    </Button>
+                    <Button Grid.Column="1"
+                            Classes="transport primary accent"
+                            IsEnabled="{Binding CanPlayPause}"
+                            ToolTip.Tip="{Binding PlayPauseText}"
+                            Click="OnPlayPauseClick">
+                        <Panel>
+                            <!-- 三角形は左に寄って見える（重心が左から 1/3 のところにある）ので、右へずらす。 -->
+                            <PathIcon Data="{StaticResource PlayIcon}" Margin="4,0,0,0" IsVisible="{Binding !IsPlaying}" />
+                            <PathIcon Data="{StaticResource PauseIcon}" IsVisible="{Binding IsPlaying}" />
+                        </Panel>
+                    </Button>
+                    <Button Grid.Column="2" Classes="transport" IsEnabled="{Binding HasItems}" ToolTip.Tip="次の曲 (Ctrl+→)" Click="OnNextClick">
+                        <PathIcon Data="{StaticResource NextIcon}" />
+                    </Button>
+                    <Button Grid.Column="3"
+                            Classes="transport minor"
+                            Margin="4,0,0,0"
+                            IsEnabled="{Binding HasTrack}"
+                            ToolTip.Tip="停止 (Ctrl+Space)"
+                            Click="OnStopClick">
+                        <PathIcon Data="{StaticResource StopIcon}" />
+                    </Button>
+                    <!-- 再生モード。押すと選択肢が出る。今のモードはアイコンとツールチップで示す。 -->
+                    <Button x:Name="ModeButton"
+                            Grid.Column="4"
+                            Classes="transport minor"
+                            ToolTip.Tip="{Binding ModeToolTip}"
+                            Click="OnModeButtonClick">
+                        <PathIcon x:Name="ModeIcon" Data="{StaticResource ModeNormalIcon}" />
+                    </Button>
+                    <!-- 押すとミュートを切り替える。音量の設定は残るので、解除するとミュートする前の音量に戻る。 -->
+                    <Button Grid.Column="6"
+                            Classes="transport minor"
+                            ToolTip.Tip="ミュート（音量は Ctrl+↑ / Ctrl+↓）"
+                            Click="OnMuteClick">
+                        <Panel>
+                            <PathIcon Data="{StaticResource VolumeIcon}" Width="16" Height="16" IsVisible="{Binding !IsMuted}" />
+                            <PathIcon Data="{StaticResource MutedIcon}" Width="16" Height="16" IsVisible="{Binding IsMuted}" />
+                        </Panel>
+                    </Button>
+                    <Slider Grid.Column="7"
+                            Classes.muted="{Binding IsMuted}"
+                            Minimum="0"
+                            Maximum="100"
+                            Focusable="False"
+                            Value="{Binding VolumePercent}" />
+                </Grid>
+            </Grid>
+        </Grid>
+        </Border>
+
+        <!--
+          状態の行。左に曲数など、右にエラーやお知らせを出す。長くて収まらない文は末尾を省き、全文はツールチップで読める。
+          ミニモードでは行ごと隠れるので、エラーやお知らせは見えない。
+        -->
+        <Border DockPanel.Dock="Bottom" Padding="12,4" IsVisible="{Binding !MiniMode}">
+            <Grid ColumnDefinitions="Auto,*" ColumnSpacing="16">
+                <TextBlock Classes="header" Text="{Binding StatusText}" />
+                <TextBlock Grid.Column="1"
+                           Classes="message"
+                           Classes.error="{Binding IsMessageError}"
+                           Text="{Binding MessageText}"
+                           ToolTip.Tip="{Binding MessageText}"
+                           HorizontalAlignment="Right"
+                           TextTrimming="CharacterEllipsis" />
+            </Grid>
+        </Border>
+
+        <!--
+          見出し。境目の線をドラッグすると幅が、見出しをドラッグすると順番が変わる（MainWindow.Columns.cs）。
+          見出しの並びは PlaylistColumn の値の順にすること。表示上の位置は、列の設定に合わせてコードで設定する。
+        -->
+        <Panel DockPanel.Dock="Top" Margin="10,0,10,2" IsVisible="{Binding !MiniMode}">
+            <Grid x:Name="ColumnHeader"
+                  Background="Transparent"
+                  PointerPressed="OnColumnHeaderPointerPressed"
+                  PointerMoved="OnColumnHeaderPointerMoved"
+                  PointerReleased="OnColumnHeaderPointerReleased"
+                  PointerCaptureLost="OnColumnHeaderCaptureLost">
+                <Border Classes="header"><TextBlock Classes="header" Text="Tr" TextAlignment="Right" /></Border>
+                <Border Classes="header"><TextBlock Classes="header" Text="タイトル" TextTrimming="CharacterEllipsis" /></Border>
+                <Border Classes="header"><TextBlock Classes="header" Text="アーティスト" TextTrimming="CharacterEllipsis" /></Border>
+                <Border Classes="header"><TextBlock Classes="header" Text="アルバム" TextTrimming="CharacterEllipsis" /></Border>
+                <Border Classes="header"><TextBlock Classes="header" Text="アルバムアーティスト" TextTrimming="CharacterEllipsis" /></Border>
+                <Border Classes="header"><TextBlock Classes="header" Text="時間" TextAlignment="Right" /></Border>
+                <Border Classes="header"><TextBlock Classes="header" Text="ファイル名" TextTrimming="CharacterEllipsis" /></Border>
+                <Border Classes="header"><TextBlock Classes="header" Text="#" TextAlignment="Right" /></Border>
+            </Grid>
+            <!-- 順番を変えるドラッグの間、離したときに入る位置を示す線。 -->
+            <Border x:Name="ColumnDropMarker"
+                    Width="2"
+                    HorizontalAlignment="Left"
+                    Background="{DynamicResource SystemControlHighlightAccentBrush}"
+                    IsHitTestVisible="False"
+                    IsVisible="False" />
+        </Panel>
+
+        <ListBox x:Name="PlaylistBox"
+                 ItemsSource="{Binding Items}"
+                 SelectionMode="Multiple"
+                 IsVisible="{Binding !MiniMode}"
+                 DoubleTapped="OnPlaylistDoubleTapped">
+            <ListBox.ContextMenu>
+                <!--
+                  曲の上で開いたかどうかで、使える項目を切り替える（OnPlaylistMenuOpening）。
+                  右クリックのメニューでは文字キーで項目を選べないので、見出しに「(P)」のような表記は付けない。
+                -->
+                <ContextMenu Opening="OnPlaylistMenuOpening" Closed="OnPlaylistMenuClosed">
+                    <MenuItem x:Name="PlayFromHereItem" Header="この曲から再生" Click="OnPlayFromHereClick" />
+                    <MenuItem x:Name="PlayNextItem" Header="次にこの曲から再生" Click="OnPlayNextClick" />
+                    <Separator />
+                    <MenuItem Header="プレイリストをシャッフル" IsEnabled="{Binding HasItems}" Click="OnShuffleClick" />
+                    <MenuItem Header="現在の曲順でリナンバリング" IsEnabled="{Binding HasItems}" Click="OnRenumberClick" />
+                    <MenuItem Header="並べ替え" IsEnabled="{Binding HasItems}">
+                        <MenuItem Header="ファイル名" Tag="FileName" Click="OnSortClick" />
+                        <MenuItem Header="タイトル" Tag="Title" Click="OnSortClick" />
+                        <MenuItem Header="アーティスト" Tag="Artist" Click="OnSortClick" />
+                        <MenuItem Header="アルバムとトラック番号" Tag="Album" Click="OnSortClick" />
+                        <MenuItem Header="フルパス" Tag="Path" Click="OnSortClick" />
+                        <MenuItem Header="曲順（#）" Tag="Order" Click="OnSortClick" />
+                    </MenuItem>
+                    <Separator />
+                    <MenuItem x:Name="RemoveItem" Header="プレイリストから削除" InputGesture="Delete" Click="OnRemoveClick" />
+                    <MenuItem Header="プレイリストからすべて削除" IsEnabled="{Binding HasItems}" Click="OnClearClick" />
+                </ContextMenu>
+            </ListBox.ContextMenu>
+            <ListBox.ItemTemplate>
+                <DataTemplate x:DataType="playlists:PlaylistItem">
+                    <!--
+                      列の位置・幅・表示は、列の設定に合わせてコードで設定する（MainWindow.ApplyColumns）。
+                      中身の並びは PlaylistColumn の値の順にすること。
+                    -->
+                    <Grid Classes="columns"
+                          Background="Transparent"
+                          Classes.missing="{Binding IsMissing}"
+                          Loaded="OnRowLoaded">
+                        <TextBlock Text="{Binding TrackNumberText}"
+                                   Classes.current="{Binding IsCurrent}"
+                                   Opacity="0.7"
+                                   TextAlignment="Right" />
+                        <TextBlock Text="{Binding DisplayTitle}"
+                                   Classes.current="{Binding IsCurrent}"
+                                   TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding Artist}"
+                                   Classes.current="{Binding IsCurrent}"
+                                   TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding Album}"
+                                   Classes.current="{Binding IsCurrent}"
+                                   TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding AlbumArtist}"
+                                   Classes.current="{Binding IsCurrent}"
+                                   TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding DurationText}"
+                                   Classes.current="{Binding IsCurrent}"
+                                   TextAlignment="Right" />
+                        <TextBlock Text="{Binding FileName}"
+                                   Classes.current="{Binding IsCurrent}"
+                                   Opacity="0.7"
+                                   TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding OrderText}"
+                                   Classes.current="{Binding IsCurrent}"
+                                   Opacity="0.7"
+                                   TextAlignment="Right" />
+                    </Grid>
+                </DataTemplate>
+            </ListBox.ItemTemplate>
+        </ListBox>
+    </DockPanel>
+</Window>

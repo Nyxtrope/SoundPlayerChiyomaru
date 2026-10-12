@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/SoundPlayerChiyomaru.Core/SoundPlayerChiyomaru.Core.csproj" />
+    <Project Path="src/SoundPlayerChiyomaru/SoundPlayerChiyomaru.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/SoundPlayerChiyomaru.Core.Tests/SoundPlayerChiyomaru.Core.Tests.csproj" />
+  </Folder>
+</Solution>
