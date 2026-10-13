@@ -17,6 +17,23 @@ public enum PlaylistSortKey
     Order,
 }
 
+/// <summary>選んだ曲をまとめて動かす先。</summary>
+public enum PlaylistMove
+{
+    /// <summary>選んだ曲のうち、いちばん上の曲の 1 つ上。</summary>
+    Up,
+
+    /// <summary>選んだ曲のうち、いちばん下の曲の 1 つ下。</summary>
+    Down,
+
+    /// <summary>再生中の曲のすぐ下。選んだ曲に再生中の曲が含まれていれば、それは動かさない。</summary>
+    AfterCurrent,
+
+    Top,
+
+    Bottom,
+}
+
 /// <summary>
 /// 作業中のプレイリスト。編集はすべて元に戻せる。1 つのスレッド（UI スレッド）から使うこと。
 /// </summary>
@@ -94,9 +111,84 @@ public sealed class Playlist
 
     /// <summary>項目を、元の並び順を保ったまままとめて移動する。</summary>
     /// <param name="insertIndex">移動前の並びで数えた挿入位置（その位置にある項目の直前に入る）。</param>
-    public void Move(IReadOnlyCollection<PlaylistItem> targets, int insertIndex)
+    public void Move(IReadOnlyCollection<PlaylistItem> targets, int insertIndex) =>
+        Replace(Arrange(new HashSet<PlaylistItem>(targets), insertIndex));
+
+    /// <summary>
+    /// 項目を、元の並び順を保ったまままとめて、<paramref name="move"/> の示す先へ移動する。
+    /// 離れた項目を選んでいたときも、移動先でひとかたまりになる。
+    /// </summary>
+    /// <param name="current">再生中の曲（<see cref="PlaylistMove.AfterCurrent"/> で使う）。</param>
+    /// <returns>並びが変わったか。</returns>
+    public bool Move(IReadOnlyCollection<PlaylistItem> targets, PlaylistMove move, PlaylistItem? current)
+    {
+        if (Plan(targets, move, current) is not { } arranged)
+        {
+            return false;
+        }
+        Replace(arranged);
+        return true;
+    }
+
+    /// <summary><see cref="Move(IReadOnlyCollection{PlaylistItem}, PlaylistMove, PlaylistItem?)"/> で並びが変わるか。</summary>
+    public bool CanMove(IReadOnlyCollection<PlaylistItem> targets, PlaylistMove move, PlaylistItem? current) =>
+        Plan(targets, move, current) is not null;
+
+    /// <summary>移動した後の並び。並びが変わらないとき（動かす先がないときを含む）は null。</summary>
+    private PlaylistItem[]? Plan(IReadOnlyCollection<PlaylistItem> targets, PlaylistMove move, PlaylistItem? current)
     {
         var set = new HashSet<PlaylistItem>(targets);
+        if (move == PlaylistMove.AfterCurrent && current is not null)
+        {
+            set.Remove(current);
+        }
+
+        int first = -1;
+        int last = -1;
+        for (int i = 0; i < items.Count; i++)
+        {
+            if (set.Contains(items[i]))
+            {
+                first = first < 0 ? i : first;
+                last = i;
+            }
+        }
+        if (first < 0)
+        {
+            return null;
+        }
+
+        int insertIndex;
+        switch (move)
+        {
+            case PlaylistMove.Up:
+                insertIndex = first - 1;
+                break;
+            case PlaylistMove.Down:
+                insertIndex = last + 2;
+                break;
+            case PlaylistMove.AfterCurrent:
+                int currentIndex = current is null ? -1 : items.IndexOf(current);
+                if (currentIndex < 0)
+                {
+                    return null;
+                }
+                insertIndex = currentIndex + 1;
+                break;
+            case PlaylistMove.Top:
+                insertIndex = 0;
+                break;
+            default:
+                insertIndex = items.Count;
+                break;
+        }
+
+        PlaylistItem[] arranged = Arrange(set, insertIndex);
+        return items.SequenceEqual(arranged) ? null : arranged;
+    }
+
+    private PlaylistItem[] Arrange(HashSet<PlaylistItem> set, int insertIndex)
+    {
         insertIndex = Math.Clamp(insertIndex, 0, items.Count);
 
         var moved = new List<PlaylistItem>();
@@ -119,7 +211,7 @@ public sealed class Playlist
             }
         }
 
-        Replace([.. before, .. moved, .. after]);
+        return [.. before, .. moved, .. after];
     }
 
     /// <summary>安定ソート。タグが未読み込みの項目はファイル名で比べる。</summary>

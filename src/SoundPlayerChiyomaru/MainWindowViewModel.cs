@@ -955,6 +955,12 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IDisposable
 
     public void Move(IReadOnlyCollection<PlaylistItem> items, int insertIndex) => playlist.Move(items, insertIndex);
 
+    /// <summary>曲をまとめて、指定した先へ動かす（「再生中の曲の次へ」の基準は、今の曲）。</summary>
+    /// <returns>並びが変わったか。</returns>
+    public bool Move(IReadOnlyCollection<PlaylistItem> items, PlaylistMove move) => playlist.Move(items, move, player.Current);
+
+    public bool CanMove(IReadOnlyCollection<PlaylistItem> items, PlaylistMove move) => playlist.CanMove(items, move, player.Current);
+
     public void Undo() => playlist.Undo();
 
     public void Redo() => playlist.Redo();

@@ -59,6 +59,9 @@ public partial class MainWindow : Window
     /// <summary>押されたままになっているキー。押しっぱなしによる繰り返しを見分けるために使う。</summary>
     private readonly HashSet<Key> heldKeys = [];
 
+    /// <summary>Alt を押している間に、Alt+↑ / Alt+↓ で曲を動かしたか（Alt を離したときにメニューを選ばせないために覚えておく）。</summary>
+    private bool movedWithAlt;
+
     private Point? pressPoint;
     private PointerPressedEventArgs? pressEvent;
     private PlaylistItem? pressedItem;
@@ -127,7 +130,11 @@ public partial class MainWindow : Window
         };
 
         // 離したことを受け取れないまま別のウィンドウへ移った場合に、押されたままの扱いを残さない。
-        Deactivated += (_, _) => heldKeys.Clear();
+        Deactivated += (_, _) =>
+        {
+            heldKeys.Clear();
+            movedWithAlt = false;
+        };
 
         // 別の拡大率のモニターへ移したら、アートワークをその大きさで読み直す。
         ScalingChanged += (_, _) => viewModel.ArtworkPixelSize = (int)Math.Ceiling(ArtworkSize * RenderScaling);
@@ -664,12 +671,12 @@ public partial class MainWindow : Window
             }
         }
 
-        // 押しっぱなしで繰り返してよいのは、シークと音量だけ。再生/一時停止や表示の切り替えが繰り返されると、
+        // 押しっぱなしで繰り返してよいのは、シークと音量と、曲を 1 つ上・下へ動かす操作だけ。再生/一時停止や表示の切り替えが繰り返されると、
         // 押している間じゅう状態が行ったり来たりする。
         bool repeated = !heldKeys.Add(e.Key);
         bool repeatable = (e.Key, e.KeyModifiers)
             is (Key.Left or Key.Right, KeyModifiers.None)
-            or (Key.Up or Key.Down, KeyModifiers.Control);
+            or (Key.Up or Key.Down, KeyModifiers.Control or KeyModifiers.Alt);
         if (repeated && !repeatable)
         {
             e.Handled = IsPlaybackKey(e.Key, e.KeyModifiers);
@@ -703,6 +710,16 @@ public partial class MainWindow : Window
             case (Key.Down, KeyModifiers.Control):
                 viewModel.ChangeVolume(-VolumeStep);
                 break;
+            // 一覧にフォーカスがあると、Alt を押していても矢印キーは選択の移動に使われてしまうので、ここで受ける。
+            // ミニモードでは一覧が見えないので、動かさない（OnKeyDown の、一覧を編集するキーと同じ）。
+            case (Key.Up, KeyModifiers.Alt) when !viewModel.MiniMode:
+                movedWithAlt = true;
+                MoveSelected(PlaylistMove.Up);
+                break;
+            case (Key.Down, KeyModifiers.Alt) when !viewModel.MiniMode:
+                movedWithAlt = true;
+                MoveSelected(PlaylistMove.Down);
+                break;
             case (Key.M, KeyModifiers.Control):
                 viewModel.MiniMode = !viewModel.MiniMode;
                 break;
@@ -726,7 +743,31 @@ public partial class MainWindow : Window
         _ => false,
     };
 
-    private void OnPreviewKeyUp(object? sender, KeyEventArgs e) => heldKeys.Remove(e.Key);
+    private void OnPreviewKeyUp(object? sender, KeyEventArgs e)
+    {
+        heldKeys.Remove(e.Key);
+        if (e.Key is Key.LeftAlt or Key.RightAlt && movedWithAlt)
+        {
+            // Alt だけを押して離すと、メニューバーが選ばれる。Alt+↑ / Alt+↓ をここで受けた場合も、Alt を離したときに同じことが起きて、
+            // 続けて押した矢印キーがメニューに取られる。メニューが選ばれるのはこの後のこともあるので、少し後で閉じる。
+            // 閉じてもフォーカスは一覧に戻らない（Alt を押したときにフォーカスのあった行は、並びを変えたときに作り直されている）ので、
+            // 動かした曲の行へ戻す（一覧そのものはフォーカスを受け取らない）。
+            movedWithAlt = false;
+            Dispatcher.UIThread.Post(() =>
+            {
+                if (MainMenu.IsOpen)
+                {
+                    MainMenu.Close();
+                }
+                if (!viewModel.MiniMode
+                    && !PlaylistBox.IsKeyboardFocusWithin
+                    && PlaylistBox.SelectedIndex is >= 0 and int index)
+                {
+                    PlaylistBox.ContainerFromIndex(index)?.Focus();
+                }
+            });
+        }
+    }
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
@@ -870,6 +911,7 @@ public partial class MainWindow : Window
         PlayFromHereItem.IsEnabled = MenuTargetItem() is not null;
         PlayNextItem.IsEnabled = PlayFromHereItem.IsEnabled;
         RemoveItem.IsEnabled = PlaylistBox.SelectedItems?.Count > 0;
+        MoveItem.IsEnabled = RemoveItem.IsEnabled;
     }
 
     private void OnPlaylistMenuClosed(object? sender, RoutedEventArgs e)
@@ -879,6 +921,47 @@ public partial class MainWindow : Window
     }
 
     private void OnSelectAllClick(object? sender, RoutedEventArgs e) => PlaylistBox.SelectAll();
+
+    /// <summary>「移動」を開いたときに、今の選択で並びが変わらない行き先（先頭にある曲の「上へ」など）を選べなくする。</summary>
+    private void OnMoveMenuOpened(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem menu || !ReferenceEquals(e.Source, menu))
+        {
+            return;
+        }
+
+        PlaylistItem[] selected = SelectedItems();
+        foreach (MenuItem item in menu.Items.OfType<MenuItem>())
+        {
+            item.IsEnabled = item.Tag is string move && viewModel.CanMove(selected, Enum.Parse<PlaylistMove>(move));
+        }
+    }
+
+    private void OnMoveClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem { Tag: string move })
+        {
+            MoveSelected(Enum.Parse<PlaylistMove>(move));
+        }
+    }
+
+    private void MoveSelected(PlaylistMove move)
+    {
+        PlaylistItem[] selected = SelectedItems();
+        if (!viewModel.Move(selected, move))
+        {
+            return;
+        }
+        Select(selected);
+
+        // 1 つずつ動かす操作は続けて行うので、動かした曲が見える位置まで追う。
+        // 離れた場所へ送る操作では追わない（送り出した後も、同じ場所で作業を続けられるように）。
+        if (move is PlaylistMove.Up or PlaylistMove.Down)
+        {
+            int[] indexes = Array.ConvertAll(selected, viewModel.IndexOf);
+            PlaylistBox.ScrollIntoView(move == PlaylistMove.Up ? indexes.Min() : indexes.Max());
+        }
+    }
 
     private void OnSortClick(object? sender, RoutedEventArgs e)
     {

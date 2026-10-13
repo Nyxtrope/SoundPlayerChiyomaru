@@ -158,11 +158,17 @@
                 <MenuItem Header="元に戻す(_U)" InputGesture="Ctrl+Z" IsEnabled="{Binding CanUndo}" Click="OnUndoClick" />
                 <MenuItem Header="やり直し(_R)" InputGesture="Ctrl+Y" IsEnabled="{Binding CanRedo}" Click="OnRedoClick" />
                 <Separator />
-                <!-- 「削除」だけでは、ファイルを消すように読める。 -->
-                <MenuItem Header="プレイリストから削除(_D)" InputGesture="Delete" Click="OnRemoveClick" />
-                <MenuItem Header="プレイリストからすべて削除(_C)" IsEnabled="{Binding HasItems}" Click="OnClearClick" />
                 <MenuItem Header="すべて選択(_A)" InputGesture="Ctrl+A" Click="OnSelectAllClick" />
                 <Separator />
+                <!-- 選択中の曲を動かす。上へ・下へのキーは OnPreviewKeyDown で受ける。 -->
+                <MenuItem Header="移動(_M)" SubmenuOpened="OnMoveMenuOpened">
+                    <MenuItem Header="上へ(_U)" Tag="Up" InputGesture="Alt+Up" Click="OnMoveClick" />
+                    <MenuItem Header="下へ(_D)" Tag="Down" InputGesture="Alt+Down" Click="OnMoveClick" />
+                    <Separator />
+                    <MenuItem Header="再生中の曲の次へ(_N)" Tag="AfterCurrent" Click="OnMoveClick" />
+                    <MenuItem Header="先頭へ(_T)" Tag="Top" Click="OnMoveClick" />
+                    <MenuItem Header="最後尾へ(_B)" Tag="Bottom" Click="OnMoveClick" />
+                </MenuItem>
                 <MenuItem Header="並べ替え(_S)">
                     <MenuItem Header="ファイル名" Tag="FileName" Click="OnSortClick" />
                     <MenuItem Header="タイトル" Tag="Title" Click="OnSortClick" />
@@ -173,6 +179,10 @@
                 </MenuItem>
                 <MenuItem Header="シャッフル(_H)" IsEnabled="{Binding HasItems}" Click="OnShuffleClick" />
                 <MenuItem Header="現在の曲順でリナンバリング(_N)" IsEnabled="{Binding HasItems}" Click="OnRenumberClick" />
+                <Separator />
+                <!-- 「削除」だけでは、ファイルを消すように読める。 -->
+                <MenuItem Header="プレイリストから削除(_D)" InputGesture="Delete" Click="OnRemoveClick" />
+                <MenuItem Header="プレイリストからすべて削除(_C)" IsEnabled="{Binding HasItems}" Click="OnClearClick" />
             </MenuItem>
             <!-- キーは OnPreviewKeyDown で受ける。ここの表記は案内のためのもの。 -->
             <MenuItem Header="再生(_P)">
@@ -426,8 +436,14 @@
                     <MenuItem x:Name="PlayFromHereItem" Header="この曲から再生" Click="OnPlayFromHereClick" />
                     <MenuItem x:Name="PlayNextItem" Header="次にこの曲から再生" Click="OnPlayNextClick" />
                     <Separator />
-                    <MenuItem Header="プレイリストをシャッフル" IsEnabled="{Binding HasItems}" Click="OnShuffleClick" />
-                    <MenuItem Header="現在の曲順でリナンバリング" IsEnabled="{Binding HasItems}" Click="OnRenumberClick" />
+                    <MenuItem x:Name="MoveItem" Header="移動" SubmenuOpened="OnMoveMenuOpened">
+                        <MenuItem Header="上へ" Tag="Up" InputGesture="Alt+Up" Click="OnMoveClick" />
+                        <MenuItem Header="下へ" Tag="Down" InputGesture="Alt+Down" Click="OnMoveClick" />
+                        <Separator />
+                        <MenuItem Header="再生中の曲の次へ" Tag="AfterCurrent" Click="OnMoveClick" />
+                        <MenuItem Header="先頭へ" Tag="Top" Click="OnMoveClick" />
+                        <MenuItem Header="最後尾へ" Tag="Bottom" Click="OnMoveClick" />
+                    </MenuItem>
                     <MenuItem Header="並べ替え" IsEnabled="{Binding HasItems}">
                         <MenuItem Header="ファイル名" Tag="FileName" Click="OnSortClick" />
                         <MenuItem Header="タイトル" Tag="Title" Click="OnSortClick" />
@@ -436,6 +452,8 @@
                         <MenuItem Header="フルパス" Tag="Path" Click="OnSortClick" />
                         <MenuItem Header="曲順（#）" Tag="Order" Click="OnSortClick" />
                     </MenuItem>
+                    <MenuItem Header="プレイリストをシャッフル" IsEnabled="{Binding HasItems}" Click="OnShuffleClick" />
+                    <MenuItem Header="現在の曲順でリナンバリング" IsEnabled="{Binding HasItems}" Click="OnRenumberClick" />
                     <Separator />
                     <MenuItem x:Name="RemoveItem" Header="プレイリストから削除" InputGesture="Delete" Click="OnRemoveClick" />
                     <MenuItem Header="プレイリストからすべて削除" IsEnabled="{Binding HasItems}" Click="OnClearClick" />

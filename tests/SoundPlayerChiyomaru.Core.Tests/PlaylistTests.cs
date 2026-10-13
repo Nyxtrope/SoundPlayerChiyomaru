@@ -94,6 +94,71 @@ public class PlaylistTests
         Assert.Equal("", Paths);
     }
 
+    [Theory]
+    [InlineData(PlaylistMove.Up, new[] { "c" }, "a,c,b,d,e")]
+    [InlineData(PlaylistMove.Up, new[] { "c", "d" }, "a,c,d,b,e")]
+    [InlineData(PlaylistMove.Up, new[] { "e", "c" }, "a,c,e,b,d")]
+    [InlineData(PlaylistMove.Up, new[] { "a", "c" }, "a,c,b,d,e")]
+    [InlineData(PlaylistMove.Down, new[] { "c" }, "a,b,d,c,e")]
+    [InlineData(PlaylistMove.Down, new[] { "b", "c" }, "a,d,b,c,e")]
+    [InlineData(PlaylistMove.Down, new[] { "a", "c" }, "b,d,a,c,e")]
+    [InlineData(PlaylistMove.Down, new[] { "c", "e" }, "a,b,d,c,e")]
+    [InlineData(PlaylistMove.Top, new[] { "c", "e" }, "c,e,a,b,d")]
+    [InlineData(PlaylistMove.Bottom, new[] { "a", "c" }, "b,d,e,a,c")]
+    [InlineData(PlaylistMove.AfterCurrent, new[] { "a" }, "b,a,c,d,e")]
+    [InlineData(PlaylistMove.AfterCurrent, new[] { "e", "d" }, "a,b,d,e,c")]
+    [InlineData(PlaylistMove.AfterCurrent, new[] { "a", "b", "d" }, "b,a,d,c,e")]
+    public void 行き先を指定した移動は_選んだ曲をまとめて動かす(PlaylistMove move, string[] targets, string expected)
+    {
+        playlist.Add(["a", "b", "c", "d", "e"]);
+        PlaylistItem current = Pick("b")[0];
+
+        Assert.True(playlist.CanMove(Pick(targets), move, current));
+        Assert.True(playlist.Move(Pick(targets), move, current));
+
+        Assert.Equal(expected, Paths);
+        Assert.Equal("1,2,3,4,5", string.Join(",", playlist.Items.OrderBy(item => item.Path).Select(item => item.Order)));
+        playlist.Undo();
+        Assert.Equal("a,b,c,d,e", Paths);
+    }
+
+    [Theory]
+    [InlineData(PlaylistMove.Up, new[] { "a" })]
+    [InlineData(PlaylistMove.Up, new[] { "a", "b" })]
+    [InlineData(PlaylistMove.Top, new[] { "a", "b" })]
+    [InlineData(PlaylistMove.Down, new[] { "e" })]
+    [InlineData(PlaylistMove.Down, new[] { "d", "e" })]
+    [InlineData(PlaylistMove.Bottom, new[] { "d", "e" })]
+    [InlineData(PlaylistMove.AfterCurrent, new[] { "b" })]
+    [InlineData(PlaylistMove.AfterCurrent, new[] { "c" })]
+    [InlineData(PlaylistMove.AfterCurrent, new[] { "b", "c", "d" })]
+    [InlineData(PlaylistMove.Up, new string[0])]
+    [InlineData(PlaylistMove.Bottom, new string[0])]
+    public void 並びが変わらない行き先への移動は_できない扱いにして_変更にもしない(PlaylistMove move, string[] targets)
+    {
+        playlist.Add(["a", "b", "c", "d", "e"]);
+        PlaylistItem current = Pick("b")[0];
+        changed = 0;
+
+        Assert.False(playlist.CanMove(Pick(targets), move, current));
+        Assert.False(playlist.Move(Pick(targets), move, current));
+
+        Assert.Equal(0, changed);
+        Assert.Equal("a,b,c,d,e", Paths);
+    }
+
+    [Fact]
+    public void 再生中の曲がないか_プレイリストにないときは_その次へは動かせない()
+    {
+        playlist.Add(["a", "b", "c"]);
+
+        Assert.False(playlist.CanMove(Pick("c"), PlaylistMove.AfterCurrent, null));
+        Assert.False(playlist.Move(Pick("c"), PlaylistMove.AfterCurrent, new PlaylistItem("other")));
+        Assert.False(playlist.Move([new PlaylistItem("other")], PlaylistMove.Top, null));
+
+        Assert.Equal("a,b,c", Paths);
+    }
+
     [Fact]
     public void ファイル名の並べ替えは数字を数値として比べる()
     {
