@@ -1272,12 +1272,31 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IDisposable
         positionTimer.IsEnabled = playback.State == PlayerState.Playing;
     }
 
+    /// <summary>
+    /// シークバーの幅（画面の実際のピクセル数）。画面が設定する。0 なら再生中の位置の更新を間引かない（<see cref="SyncPosition"/>）。
+    /// </summary>
+    public double SeekBarPixels { get; set; }
+
+    /// <summary>
+    /// 再生中の位置を表示に反映する。見た目が変わるとき（時刻の表示の秒が変わるか、シークバーのつまみが 1 ピクセル以上動くとき）だけ更新する。
+    /// 見た目が変わらない更新でも画面は描き直されるので、その分を省く（5 分の曲では、1 秒に 5 回の更新が約 2 回になる。SPEC 7 章）。
+    /// </summary>
     private void SyncPosition()
     {
+        double position = playback.Position.TotalSeconds;
+        bool secondChanged = Math.Floor(position) != Math.Floor(positionSeconds);
+        bool thumbMoves = SeekBarPixels <= 0
+            || durationSeconds <= 0
+            || Math.Abs(position - positionSeconds) * SeekBarPixels / durationSeconds >= 1;
+        if (!secondChanged && !thumbMoves)
+        {
+            return;
+        }
+
         syncingFromPlayback = true;
         try
         {
-            PositionSeconds = playback.Position.TotalSeconds;
+            PositionSeconds = position;
         }
         finally
         {

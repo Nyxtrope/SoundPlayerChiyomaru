@@ -108,6 +108,10 @@ public partial class MainWindow : Window
         PlaylistBox.AddHandler(PointerReleasedEvent, OnPlaylistPointerReleased, RoutingStrategies.Tunnel);
         PlaylistBox.ContainerPrepared += OnRowPrepared;
 
+        // スライダーより先に受け取る必要があるので、トンネルで受ける。
+        SeekBar.AddHandler(PointerPressedEvent, OnSliderPointerPressed, RoutingStrategies.Tunnel);
+        VolumeSlider.AddHandler(PointerPressedEvent, OnSliderPointerPressed, RoutingStrategies.Tunnel);
+
         viewModel.CurrentItemChanged += OnCurrentItemChanged;
         viewModel.ColumnsChanged += OnColumnsChanged;
         viewModel.PropertyChanged += OnViewModelPropertyChanged;
@@ -150,8 +154,12 @@ public partial class MainWindow : Window
             movedWithAlt = false;
         };
 
-        // 別の拡大率のモニターへ移したら、アートワークをその大きさで読み直す。
-        ScalingChanged += (_, _) => viewModel.ArtworkPixelSize = (int)Math.Ceiling(ArtworkSize * RenderScaling);
+        // 別の拡大率のモニターへ移したら、アートワークをその大きさで読み直す。シークバーの実際のピクセル数も変わる。
+        ScalingChanged += (_, _) =>
+        {
+            viewModel.ArtworkPixelSize = (int)Math.Ceiling(ArtworkSize * RenderScaling);
+            UpdateSeekBarPixels();
+        };
 
         // 受信は早く始める。後から起動されたプロセスは、こちらが受信を始めるまで待たされるため。
         // 届いた時刻は受信用のスレッドで記録し（処理が遅れても「続けて届いた」の判定がずれないように）、処理は UI スレッドへ渡す。
@@ -650,9 +658,9 @@ public partial class MainWindow : Window
         {
             settingsWindow = null;
 
-            // 設定画面は、開くと約 15MB のメモリを使う（実測）。閉じただけでは回収後のヒープも描画のキャッシュも
-            // OS に返らないので、閉じた後に 1 回だけ、キャッシュを捨ててヒープを詰める。閉じた直後はウィンドウがまだ
-            // 解放されていないので、少し待ってから行う。
+            // 設定画面の部品は、開いている間に古い世代へ移るので、閉じても若い世代の GC では回収されず、
+            // 開閉を繰り返すとその分ずつメモリが増える（15 秒ずつ 4 回で約 10MB。SPEC 8.3）。描画のキャッシュも残る。
+            // 閉じた後に 1 回だけ、キャッシュを捨ててヒープを詰める。閉じた直後はウィンドウがまだ解放されていないので、少し待ってから行う。
             DispatcherTimer.RunOnce(
                 () =>
                 {
@@ -666,6 +674,37 @@ public partial class MainWindow : Window
         };
         settingsWindow.Show(this);
     }
+
+    private void OnSeekBarSizeChanged(object? sender, SizeChangedEventArgs e) => UpdateSeekBarPixels();
+
+    /// <summary>シークバーの上でホイールを回した。1 段で「再生」メニューの「5 秒進む / 戻る」と同じだけ動かす（下へ回すと進む）。</summary>
+    private void OnSeekWheel(object? sender, PointerWheelEventArgs e)
+    {
+        if (e.Delta.Y != 0)
+        {
+            // 下へ回すと Delta.Y は負になる。
+            viewModel.SeekBy(-Math.Sign(e.Delta.Y) * SeekStep);
+            e.Handled = true;
+        }
+    }
+
+    /// <summary>
+    /// スライダーは、左以外のボタンでもつまみを動かす（右ボタンでドラッグしてもシークする）。左ボタン以外の押下はスライダーに渡さない。
+    /// 右ボタンを離したときのメニュー（ミニモードの右クリックのメニュー）は、押下とは別に届くので、このままでも開く。
+    /// </summary>
+    private static void OnSliderPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (sender is Visual slider && !e.GetCurrentPoint(slider).Properties.IsLeftButtonPressed)
+        {
+            e.Handled = true;
+        }
+    }
+
+    /// <summary>
+    /// シークバーの幅を ViewModel に渡す。つまみが動ける幅はこれよりつまみの分だけ狭いが、広めに渡しておけば、
+    /// 間引きすぎて動きが粗くなることはない（1 ピクセル未満の動きで更新することがあるだけ）。
+    /// </summary>
+    private void UpdateSeekBarPixels() => viewModel.SeekBarPixels = SeekBar.Bounds.Width * RenderScaling;
 
     private void OnMiniModeClick(object? sender, RoutedEventArgs e) => viewModel.MiniMode = !viewModel.MiniMode;
 
@@ -879,9 +918,9 @@ public partial class MainWindow : Window
     }
 
     /// <summary>
-    /// 一覧の行に曲を割り当てた（スクロールなどで行を作り直した）。行ごとに文字を組み直すので、大きなプレイリストを端から端まで
-    /// スクロールすると、一時オブジェクトが数十 MB たまる（10,000 曲で約 46MB）。放っておくと回収後のヒープも OS に返らない。
-    /// 多くの行を作り直したら、止まった後に 1 回だけヒープを詰めて返す（列の幅のドラッグと同じ対処。SPEC 8.3）。
+    /// 一覧の行に曲を割り当てた（スクロールなどで行を作り直した）。大きなプレイリストを端から端までスクロールすると、
+    /// 行の部品や文字の組みの一部が古い世代へ移ってヒープがすき間だらけになり、若い世代の GC だけでは OS に返らない（10,000 曲で約 5MB）。
+    /// 多くの行を作り直したら、止まった後に 1 回だけヒープを詰めて返す（SPEC 8.3）。
     /// </summary>
     private void OnRowPrepared(object? sender, ContainerPreparedEventArgs e)
     {

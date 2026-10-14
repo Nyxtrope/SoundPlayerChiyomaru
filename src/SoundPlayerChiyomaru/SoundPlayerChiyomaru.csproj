@@ -38,4 +38,14 @@
     <ProjectReference Include="..\SoundPlayerChiyomaru.Core\SoundPlayerChiyomaru.Core.csproj" />
   </ItemGroup>
 
+  <!--
+    GC の若い世代の大きさを 8MB に決めて、実行ファイルに埋め込む（値は 16 進数。0x を付けると無視される）。
+    指定しないと CPU のキャッシュの大きさで決まり、この開発機では約 40MB になった。その分のごみが GC まで残るので、
+    再生し続けるだけでワーキングセットが約 40MB 増えていた。4MB では起動中に GC が走って表示が約 6ms 遅れ、
+    8MB では起動中には走らない（SPEC 8.3）。
+  -->
+  <ItemGroup>
+    <IlcArg Include="--runtimeopt:GCgen0size=800000" />
+  </ItemGroup>
+
 </Project>

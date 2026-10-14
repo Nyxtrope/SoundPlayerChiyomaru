@@ -350,9 +350,8 @@ public partial class MainWindow
         columnDrag = null;
         ColumnDropMarker.IsVisible = false;
 
-        // 幅を変えている間は、動かすたびに見えている行の文字を組み直すので、一時オブジェクトが数十 MB たまる。
-        // 放っておくと回収後のヒープも OS に返らず、メモリ使用量が増えたままになる（実測で 30〜45MB）。
-        // ドラッグを終えた時点で 1 回だけ、ヒープを詰めて返す（TrackInfoLoader と同じ対処）。
+        // 幅を変えている間は、動かすたびに見えている行の文字を組み直す。その一部が古い世代へ移ってヒープがすき間だらけになり、
+        // 若い世代の GC だけでは OS に返らない（約 5MB。SPEC 8.3）。ドラッグを終えた時点で 1 回だけ、ヒープを詰めて返す。
         if (resized)
         {
             GC.Collect(GC.MaxGeneration, GCCollectionMode.Aggressive, blocking: true, compacting: true);

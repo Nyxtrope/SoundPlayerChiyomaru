@@ -75,8 +75,8 @@ public sealed class TrackInfoLoader
         }
         while (!queue.IsEmpty && Interlocked.CompareExchange(ref workerRunning, 1, 0) == 0);
 
-        // タグの読み取りは 1 曲あたり約 8KB の一時オブジェクトを作る。数千曲を読むと数十 MB になり、
-        // 放っておくと回収後のヒープも OS に返らず、メモリ使用量が増えたままになる（SPEC 8.3 の実測）。
+        // 読み取ったタグは項目に残るので、まとめて読むと古い世代へ移り、途中の一時オブジェクトとまじってヒープがすき間だらけになる。
+        // 若い世代の GC だけでは OS に返らない（10,000 曲で約 8MB。SPEC 8.3 の実測）。
         // まとめて読み終えた時点で 1 回だけ、ヒープを詰めて返す。
         if (loaded >= CompactThreshold)
         {

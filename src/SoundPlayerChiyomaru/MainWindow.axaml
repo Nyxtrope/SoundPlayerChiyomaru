@@ -305,11 +305,18 @@
                            TextTrimming="CharacterEllipsis" />
                 <Grid Grid.Row="4" ColumnDefinitions="*,Auto" ColumnSpacing="10">
                     <!-- スライダーにフォーカスを持たせない。持たせると、空白キーや矢印キーがスライダーに取られて再生の操作に使えなくなる。 -->
-                    <Slider Minimum="0"
+                    <!--
+                      幅は、再生中の位置の更新を間引くために ViewModel へ渡す（OnSeekBarSizeChanged）。
+                      ホイールでも 5 秒ずつシークできる（OnSeekWheel）。左ボタン以外では動かさない（OnSliderPointerPressed）。
+                    -->
+                    <Slider x:Name="SeekBar"
+                            Minimum="0"
                             Maximum="{Binding DurationSeconds}"
                             Value="{Binding PositionSeconds}"
                             Focusable="False"
-                            IsEnabled="{Binding HasTrack}" />
+                            IsEnabled="{Binding HasTrack}"
+                            SizeChanged="OnSeekBarSizeChanged"
+                            PointerWheelChanged="OnSeekWheel" />
                     <TextBlock Grid.Column="1"
                                Text="{Binding TimeText}"
                                VerticalAlignment="Center" />
@@ -373,8 +380,9 @@
                             <PathIcon Data="{StaticResource MutedIcon}" Width="16" Height="16" IsVisible="{Binding IsMuted}" />
                         </Panel>
                     </Button>
-                    <!-- ホイールでも音量を変えられる（OnVolumeWheel）。 -->
-                    <Slider Grid.Column="7"
+                    <!-- ホイールでも音量を変えられる（OnVolumeWheel）。左ボタン以外では動かさない（OnSliderPointerPressed）。 -->
+                    <Slider x:Name="VolumeSlider"
+                            Grid.Column="7"
                             Classes.muted="{Binding IsMuted}"
                             PointerWheelChanged="OnVolumeWheel"
                             Minimum="0"
