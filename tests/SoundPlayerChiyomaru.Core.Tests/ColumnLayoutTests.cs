@@ -266,7 +266,7 @@ public class ColumnLayoutTests : TempDirectoryTest
     }
 
     [Fact]
-    public void 既定に戻すと幅と順番だけが戻り_表示する列は変わらない()
+    public void 既定に戻すと_表示する列も幅も順番も既定になる()
     {
         List<ColumnSetting> columns = Classic();
         columns[0].Visible = true;
@@ -274,13 +274,14 @@ public class ColumnLayoutTests : TempDirectoryTest
         columns[1].Width = 77;
         ColumnLayout.Move(columns, 6, 0);
 
-        ColumnLayout.ResetWidthsAndOrder(columns);
+        ColumnLayout.Reset(columns);
 
         List<ColumnSetting> defaults = ColumnLayout.CreateDefault();
         Assert.Equal(Order(defaults), Order(columns));
         Assert.Equal(defaults.Select(c => c.Width), columns.Select(c => c.Width));
+        Assert.Equal(defaults.Select(c => c.Visible), columns.Select(c => c.Visible));
         Assert.Equal(
-            [PlaylistColumn.TrackNumber, PlaylistColumn.Title, PlaylistColumn.Album, PlaylistColumn.Duration, PlaylistColumn.FileName],
+            [PlaylistColumn.Order, PlaylistColumn.Title, PlaylistColumn.Artist, PlaylistColumn.Album, PlaylistColumn.Duration, PlaylistColumn.FileName],
             Order(columns.Where(c => c.Visible)));
     }
 

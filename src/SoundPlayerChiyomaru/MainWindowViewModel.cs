@@ -670,7 +670,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
-    /// <summary>列の幅と順番を既定に戻す。どの列を表示するかは変えない。</summary>
+    /// <summary>隠している列を表示して、<paramref name="before"/> の位置にある列の前へ置く（末尾へは列の数）。</summary>
     public void ShowColumn(PlaylistColumn id, int before)
     {
         if (ColumnLayout.Show(columns, id, before))
@@ -679,9 +679,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
+    /// <summary>表示する列、幅、順番をすべて既定に戻す。</summary>
     public void ResetColumns()
     {
-        ColumnLayout.ResetWidthsAndOrder(columns);
+        ColumnLayout.Reset(columns);
         ColumnsChanged?.Invoke(this, EventArgs.Empty);
     }
 

@@ -93,7 +93,7 @@
                         <CheckBox Content="時間" Tag="Duration" Margin="0,0,18,0" IsCheckedChanged="OnColumnChanged" />
                         <CheckBox Content="ファイル名" Tag="FileName" Margin="0,0,18,0" IsCheckedChanged="OnColumnChanged" />
                     </WrapPanel>
-                    <Button Content="幅と順番を既定に戻す" Margin="0,8,0,0" Click="OnResetColumnsClick" />
+                    <Button Content="既定の表示に戻す" Margin="0,8,0,0" Click="OnResetColumnsClick" />
                     <TextBlock Classes="note" Text="幅と順番は、一覧の見出しをドラッグするか右クリックして変えられます。" />
 
                     <TextBlock Classes="section" Text="プレイリストの保存" />

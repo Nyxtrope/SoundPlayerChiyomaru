@@ -239,16 +239,11 @@ public static class ColumnLayout
         return Move(columns, from, before) || shown;
     }
 
-    /// <summary>幅と順番を既定に戻す。どの列を表示するかは変えない。</summary>
-    public static void ResetWidthsAndOrder(List<ColumnSetting> columns)
+    /// <summary>表示する列、幅、順番をすべて既定に戻す。</summary>
+    public static void Reset(List<ColumnSetting> columns)
     {
-        List<ColumnSetting> defaults = CreateDefault();
-        foreach (ColumnSetting column in defaults)
-        {
-            column.Visible = columns.Find(c => c.Id == column.Id)?.Visible ?? column.Visible;
-        }
         columns.Clear();
-        columns.AddRange(defaults);
+        columns.AddRange(CreateDefault());
     }
 
     /// <summary><paramref name="index"/> より前の、最後の表示中の列の位置。なければ -1。</summary>
