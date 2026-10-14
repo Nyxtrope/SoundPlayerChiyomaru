@@ -357,7 +357,7 @@ public partial class MainWindow : Window
         exclusive.Click += (_, _) => viewModel.ExclusiveMode = !viewModel.ExclusiveMode;
         OutputMenu.Items.Add(exclusive);
 
-        var replayGain = new MenuItem { Header = "ReplayGain（有効な間はビットパーフェクトではなくなります）" };
+        var replayGain = new MenuItem { Header = "ReplayGain" };
         foreach ((string header, ReplayGainMode mode) in new[]
         {
             ("オフ", ReplayGainMode.Off),

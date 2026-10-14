@@ -141,7 +141,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IDisposable
     public PlaylistItem? CurrentItem => player.Current;
 
     /// <summary>再生モードの表示名。並びは <see cref="PlayMode"/> の値の順。</summary>
-    public IReadOnlyList<string> ModeNames { get; } = ["通常", "1曲リピート", "全曲リピート", "ランダム", "1Shot"];
+    public IReadOnlyList<string> ModeNames { get; } = ["通常", "1曲リピート", "全曲リピート", "ランダム", "1ショット"];
 
     public int ModeIndex
     {

@@ -1,7 +1,7 @@
 <Window xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         x:Class="SoundPlayerChiyomaru.SettingsWindow"
-        Title="設定"
+        Title="設定 | S:P Chiyomaru"
         Width="680"
         Height="520"
         MinWidth="560"
@@ -67,20 +67,20 @@
 
                     <TextBlock Classes="section" Text="バッファの長さ" />
                     <ComboBox x:Name="BufferBox" SelectionChanged="OnBufferChanged" />
-                    <TextBlock Classes="note" Text="短いほど操作への反応が速く、長いほど音が途切れにくくなります。デバイスが受け付けない長さを選ぶと、排他モードでは共有モードに切り替わります。" />
+                    <TextBlock Classes="note" Text="短いほど操作への反応が速く、長いほど音が途切れにくくなります。デバイスが受け付けない長さを選ぶと、排他モードから共有モードに切り替わります。" />
 
                     <TextBlock Classes="section" Text="出力のビット深度（排他モード）" />
                     <ComboBox x:Name="BitDepthBox" SelectionChanged="OnBitDepthChanged" />
-                    <TextBlock Classes="note" Text="通常は「自動」のままにします。デバイスによって音が出ないときの切り分けに使えます。上限が曲のビット数より小さいと、ビットパーフェクトではなくなります。" />
+                    <TextBlock Classes="note" Text="通常は「自動」のままにします。上限が曲のビット数より小さいと、ビットパーフェクトではなくなります。" />
 
                     <TextBlock Classes="section" Text="今の出力" />
                     <TextBlock x:Name="OutputStatusText" Classes="note" />
                 </StackPanel>
 
                 <StackPanel IsVisible="False">
-                    <TextBlock Classes="section first" Text="曲の追加（既定: チェックなし）" />
-                    <CheckBox x:Name="ExcludeDuplicatesBox" Content="すでにプレイリストにある曲は追加しない" IsCheckedChanged="OnExcludeDuplicatesChanged" />
-                    <TextBlock Classes="note" Text="ファイルやフォルダを追加するときに、同じファイルを除きます。同じファイルを 2 回入れたいときは、オフにします。「開く」でプレイリストを置き換えるときは除きません。" />
+                    <TextBlock Classes="section first" Text="曲の追加" />
+                    <CheckBox x:Name="ExcludeDuplicatesBox" Content="すでにプレイリストにある曲は追加しない（既定: チェックなし）" IsCheckedChanged="OnExcludeDuplicatesChanged" />
+                    <TextBlock Classes="note" Text="ファイルやフォルダを追加するときに、同じファイルは除かれます。同じファイルを 2 回再生したいときは、オフにします。「開く」で選んだ場合は除きません。" />
 
                     <TextBlock Classes="section" Text="表示する列" />
                     <!-- Tag は PlaylistColumn の名前。タイトルの列は常に表示するので、ここには出さない。 -->
@@ -94,11 +94,11 @@
                         <CheckBox Content="ファイル名" Tag="FileName" Margin="0,0,18,0" IsCheckedChanged="OnColumnChanged" />
                     </WrapPanel>
                     <Button Content="幅と順番を既定に戻す" Margin="0,8,0,0" Click="OnResetColumnsClick" />
-                    <TextBlock Classes="note" Text="幅と順番は、一覧の見出しをドラッグして変えられます。見出しを右クリックして変えることもできます。" />
+                    <TextBlock Classes="note" Text="幅と順番は、一覧の見出しをドラッグするか右クリックして変えられます。" />
 
-                    <TextBlock Classes="section" Text="プレイリストの保存（既定: チェックなし）" />
-                    <CheckBox x:Name="RelativePathsBox" Content="曲を相対パスで書く" IsCheckedChanged="OnRelativePathsChanged" />
-                    <TextBlock Classes="note" Text="プレイリストファイルと同じドライブにある曲を、プレイリストファイルの場所からの相対パスで書きます。" />
+                    <TextBlock Classes="section" Text="プレイリストの保存" />
+                    <CheckBox x:Name="RelativePathsBox" Content="曲を相対パスで書き込む（既定: チェックなし）" IsCheckedChanged="OnRelativePathsChanged" />
+                    <TextBlock Classes="note" Text="プレイリストファイルと同じドライブにある曲を、プレイリストファイルの場所からの相対パスで書き込みます。" />
                 </StackPanel>
 
                 <StackPanel IsVisible="False">
@@ -109,7 +109,7 @@
                         <RadioButton GroupName="ExternalOpen" Tag="1" Content="末尾に追加" IsCheckedChanged="OnExternalOpenChanged" />
                         <RadioButton GroupName="ExternalOpen" Tag="2" Content="追加して再生" IsCheckedChanged="OnExternalOpenChanged" />
                     </StackPanel>
-                    <TextBlock Classes="note" Text="このアプリを起動している間に、エクスプローラーなどからファイルを開いたときの動作です。再生の操作の部分（プレイリストの外）にファイルをドロップしたときも、この動作になります。「ファイル」メニューの「開く」の動作は変わりません（常に置き換えて再生）。" />
+                    <TextBlock Classes="note" Text="このアプリを起動している間に、エクスプローラーなどからファイルを開いたときの動作です。プレイリスト以外にファイルをドロップしたときも、この動作になります。「ファイル」メニューの「開く」の動作は変わりません（常に置き換えて再生）。" />
 
                     <TextBlock Classes="section" Text="ファイルの関連付け" />
                     <StackPanel Orientation="Horizontal" Spacing="8">
@@ -132,10 +132,10 @@
                         <ComboBoxItem Content="Windows: Light" />
                         <ComboBoxItem Content="Windows: Dark" />
                     </ComboBox>
-                    <TextBlock Classes="note" Text="System は、明るい・暗いを Windows の設定に合わせます。" />
+                    <TextBlock Classes="note" Text="System は、Light か Dark かを Windows の設定に合わせます。" />
 
-                    <TextBlock Classes="section" Text="ウィンドウ（既定: チェックなし）" />
-                    <CheckBox x:Name="AlwaysOnTopBox" Content="常に手前に表示" IsCheckedChanged="OnAlwaysOnTopChanged" />
+                    <TextBlock Classes="section" Text="ウィンドウ" />
+                    <CheckBox x:Name="AlwaysOnTopBox" Content="常に手前に表示（既定: チェックなし）" IsCheckedChanged="OnAlwaysOnTopChanged" />
                 </StackPanel>
 
                 <DockPanel IsVisible="False">
