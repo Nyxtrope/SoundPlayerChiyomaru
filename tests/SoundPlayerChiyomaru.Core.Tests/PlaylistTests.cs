@@ -268,6 +268,69 @@ public class PlaylistTests
     }
 
     [Fact]
+    public void 置き換えは元に戻せて_保存先も戻り_やり直せる()
+    {
+        playlist.Add(["a", "b"]);
+        playlist.FilePath = "old.m3u8";
+        PlaylistItem[] before = playlist.Items.ToArray();
+
+        playlist.Open([new PlaylistEntry("x", 5), new PlaylistEntry("y")], "new.m3u8");
+        Assert.Equal("x,y", Paths);
+        Assert.Equal("new.m3u8", playlist.FilePath);
+        Assert.Equal("5,6", string.Join(",", playlist.Items.Select(item => item.Order)));
+
+        playlist.Undo();
+        Assert.Equal(before, playlist.Items);
+        Assert.Equal("old.m3u8", playlist.FilePath);
+        Assert.Equal("1,2", string.Join(",", playlist.Items.Select(item => item.Order)));
+
+        playlist.Redo();
+        Assert.Equal("x,y", Paths);
+        Assert.Equal("new.m3u8", playlist.FilePath);
+
+        // 置き換えより前の編集も、続けて戻せる。
+        playlist.Undo();
+        Assert.Equal("a,b", Paths);
+        playlist.Undo();
+        Assert.Equal("", Paths);
+    }
+
+    [Fact]
+    public void 置き換え以外の編集を戻しても_名前を付けて保存した保存先は変わらない()
+    {
+        playlist.Add(["a"]);
+        playlist.Add(["b"]);
+        playlist.FilePath = "saved-as.m3u8";
+
+        playlist.Undo();
+
+        Assert.Equal("a", Paths);
+        Assert.Equal("saved-as.m3u8", playlist.FilePath);
+    }
+
+    [Fact]
+    public void 置き換えを戻せるのは直近の3回までで_それより前の履歴も捨てる()
+    {
+        playlist.Add(["a"]);
+        playlist.Add(["b"]);
+        for (int i = 1; i <= 4; i++)
+        {
+            playlist.Open([new PlaylistEntry($"open{i}")], null);
+            playlist.Add([$"add{i}"]);
+        }
+
+        var seen = new List<string>();
+        while (playlist.CanUndo)
+        {
+            playlist.Undo();
+            seen.Add(Paths);
+        }
+
+        // 最初の置き換え（open1）より前の a, b には戻れない。open1 を開いた直後までは戻れる。
+        Assert.Equal(["open4", "open3,add3", "open3", "open2,add2", "open2", "open1,add1", "open1"], seen);
+    }
+
+    [Fact]
     public void 挿入は範囲の追加として_それ以外は全体の入れ替えとして通知する()
     {
         var actions = new List<(NotifyCollectionChangedAction Action, int Index, int Count)>();

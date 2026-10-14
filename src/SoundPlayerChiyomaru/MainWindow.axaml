@@ -154,7 +154,7 @@
                 <Separator />
                 <MenuItem Header="終了(_X)" Click="OnExitClick" />
             </MenuItem>
-            <MenuItem Header="編集(_E)">
+            <MenuItem x:Name="EditMenu" Header="編集(_E)" SubmenuOpened="OnEditMenuOpened">
                 <MenuItem Header="元に戻す(_U)" InputGesture="Ctrl+Z" IsEnabled="{Binding CanUndo}" Click="OnUndoClick" />
                 <MenuItem Header="やり直し(_R)" InputGesture="Ctrl+Y" IsEnabled="{Binding CanRedo}" Click="OnRedoClick" />
                 <Separator />
@@ -170,18 +170,18 @@
                     <MenuItem Header="最後尾へ(_B)" Tag="Bottom" Click="OnMoveClick" />
                 </MenuItem>
                 <MenuItem Header="並べ替え(_S)">
-                    <MenuItem Header="ファイル名" Tag="FileName" Click="OnSortClick" />
-                    <MenuItem Header="タイトル" Tag="Title" Click="OnSortClick" />
-                    <MenuItem Header="アーティスト" Tag="Artist" Click="OnSortClick" />
-                    <MenuItem Header="アルバムとトラック番号" Tag="Album" Click="OnSortClick" />
-                    <MenuItem Header="フルパス" Tag="Path" Click="OnSortClick" />
-                    <MenuItem Header="曲順（#）" Tag="Order" Click="OnSortClick" />
+                    <MenuItem Header="ファイル名(_F)" Tag="FileName" Click="OnSortClick" />
+                    <MenuItem Header="タイトル(_T)" Tag="Title" Click="OnSortClick" />
+                    <MenuItem Header="アーティスト(_A)" Tag="Artist" Click="OnSortClick" />
+                    <MenuItem Header="アルバムとトラック番号(_L)" Tag="Album" Click="OnSortClick" />
+                    <MenuItem Header="フルパス(_P)" Tag="Path" Click="OnSortClick" />
+                    <MenuItem Header="曲順（#）(_O)" Tag="Order" Click="OnSortClick" />
                 </MenuItem>
-                <MenuItem Header="シャッフル(_H)" IsEnabled="{Binding HasItems}" Click="OnShuffleClick" />
+                <MenuItem Header="プレイリストをシャッフル(_H)" IsEnabled="{Binding HasItems}" Click="OnShuffleClick" />
                 <MenuItem Header="現在の曲順でリナンバリング(_N)" IsEnabled="{Binding HasItems}" Click="OnRenumberClick" />
                 <Separator />
                 <!-- 「削除」だけでは、ファイルを消すように読める。 -->
-                <MenuItem Header="プレイリストから削除(_D)" InputGesture="Delete" Click="OnRemoveClick" />
+                <MenuItem x:Name="EditRemoveItem" Header="プレイリストから削除(_D)" InputGesture="Delete" Click="OnRemoveClick" />
                 <MenuItem Header="プレイリストからすべて削除(_C)" IsEnabled="{Binding HasItems}" Click="OnClearClick" />
             </MenuItem>
             <!-- キーは OnPreviewKeyDown で受ける。ここの表記は案内のためのもの。 -->
@@ -189,15 +189,23 @@
                 <MenuItem Header="再生 / 一時停止(_P)" InputGesture="Space" IsEnabled="{Binding CanPlayPause}" Click="OnPlayPauseClick" />
                 <MenuItem Header="停止(_S)" InputGesture="Ctrl+Space" IsEnabled="{Binding HasTrack}" Click="OnStopClick" />
                 <Separator />
-                <MenuItem Header="次の曲(_N)" InputGesture="Ctrl+Right" IsEnabled="{Binding HasItems}" Click="OnNextClick" />
                 <MenuItem Header="前の曲(_B)" InputGesture="Ctrl+Left" IsEnabled="{Binding HasItems}" Click="OnPreviousClick" />
+                <MenuItem Header="次の曲(_N)" InputGesture="Ctrl+Right" IsEnabled="{Binding HasItems}" Click="OnNextClick" />
+                <!-- 再生モードのボタンと同じ選択肢。Tag は PlayMode の値。名前は MainWindowViewModel.ModeNames と合わせること。 -->
+                <MenuItem Header="再生モード(_O)" SubmenuOpened="OnModeMenuOpened">
+                    <MenuItem Header="通常(_N)" Tag="0" ToggleType="Radio" Click="OnModeMenuClick" />
+                    <MenuItem Header="1曲リピート(_1)" Tag="1" ToggleType="Radio" Click="OnModeMenuClick" />
+                    <MenuItem Header="全曲リピート(_A)" Tag="2" ToggleType="Radio" Click="OnModeMenuClick" />
+                    <MenuItem Header="ランダム(_R)" Tag="3" ToggleType="Radio" Click="OnModeMenuClick" />
+                    <MenuItem Header="1ショット(_O)" Tag="4" ToggleType="Radio" Click="OnModeMenuClick" />
+                </MenuItem>
                 <Separator />
                 <MenuItem Header="5 秒進む(_F)" InputGesture="Right" IsEnabled="{Binding HasTrack}" Click="OnSeekForwardClick" />
                 <MenuItem Header="5 秒戻る(_R)" InputGesture="Left" IsEnabled="{Binding HasTrack}" Click="OnSeekBackClick" />
                 <Separator />
                 <MenuItem Header="音量を上げる(_U)" InputGesture="Ctrl+Up" Click="OnVolumeUpClick" />
                 <MenuItem Header="音量を下げる(_D)" InputGesture="Ctrl+Down" Click="OnVolumeDownClick" />
-                <MenuItem Header="ミュート(_M)" ToggleType="CheckBox" IsChecked="{Binding IsMuted, Mode=OneWay}" Click="OnMuteClick" />
+                <MenuItem Header="ミュート(_M)" InputGesture="M" ToggleType="CheckBox" IsChecked="{Binding IsMuted, Mode=OneWay}" Click="OnMuteClick" />
             </MenuItem>
             <MenuItem Header="表示(_V)">
                 <!-- チェックの切り替えはクリックで行う。IsChecked を双方向にバインドしても、メニューでの操作は設定に書き戻されなかった。 -->
@@ -365,8 +373,10 @@
                             <PathIcon Data="{StaticResource MutedIcon}" Width="16" Height="16" IsVisible="{Binding IsMuted}" />
                         </Panel>
                     </Button>
+                    <!-- ホイールでも音量を変えられる（OnVolumeWheel）。 -->
                     <Slider Grid.Column="7"
                             Classes.muted="{Binding IsMuted}"
+                            PointerWheelChanged="OnVolumeWheel"
                             Minimum="0"
                             Maximum="100"
                             Focusable="False"
@@ -422,6 +432,7 @@
                     IsVisible="False" />
         </Panel>
 
+        <Panel>
         <ListBox x:Name="PlaylistBox"
                  ItemsSource="{Binding Items}"
                  SelectionMode="Multiple"
@@ -500,5 +511,14 @@
                 </DataTemplate>
             </ListBox.ItemTemplate>
         </ListBox>
+        <!-- 一覧の中へドラッグしている間、離したときに入る位置を示す線（曲の並べ替えとファイルの追加の両方。MainWindow.UpdateDropMarker）。 -->
+        <Border x:Name="PlaylistDropMarker"
+                Height="2"
+                Margin="4,0"
+                VerticalAlignment="Top"
+                Background="{DynamicResource SystemControlHighlightAccentBrush}"
+                IsHitTestVisible="False"
+                IsVisible="False" />
+        </Panel>
     </DockPanel>
 </Window>

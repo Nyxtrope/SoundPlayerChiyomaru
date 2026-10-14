@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Runtime.InteropServices;
 using Avalonia;
 using Avalonia.Controls;
@@ -28,6 +29,12 @@ public partial class MainWindow : Window
 
     /// <summary>押したままこの距離（ピクセル）を超えて動かしたら、クリックではなくドラッグとみなす。</summary>
     private const double DragThreshold = 6;
+
+    /// <summary>一覧の行をこの数以上作り直したら、スクロールが止まった後にヒープを詰める（少し動かしただけでは詰めない）。</summary>
+    private const int CompactAfterPreparedRows = 200;
+
+    /// <summary>行の作り直しが止まってから、ヒープを詰めるまでの時間。</summary>
+    private static readonly TimeSpan CompactDelay = TimeSpan.FromSeconds(1.5);
 
     private static readonly DataFormat<string> ReorderFormat =
         DataFormat.CreateInProcessFormat<string>("SoundPlayerChiyomaru.PlaylistReorder");
@@ -68,6 +75,9 @@ public partial class MainWindow : Window
     private bool selectOnRelease;
     private IReadOnlyList<PlaylistItem>? reorderItems;
 
+    private int preparedSinceCompact;
+    private DispatcherTimer? compactTimer;
+
     /// <summary>右クリックで押された曲（曲のない場所なら null）と、右クリックされたかどうか。メニューを閉じたら消す。</summary>
     private PlaylistItem? menuItem;
     private bool menuOpenedByPointer;
@@ -86,13 +96,17 @@ public partial class MainWindow : Window
         PositionChanged += (_, _) => TrackBounds();
         Resized += (_, _) => TrackBounds();
 
+        // 部品の境目を越えた直後は DragOver ではなく DragEnter だけが届くので、同じ処理で受ける。
+        AddHandler(DragDrop.DragEnterEvent, OnDragOver);
         AddHandler(DragDrop.DragOverEvent, OnDragOver);
+        AddHandler(DragDrop.DragLeaveEvent, OnDragLeave);
         AddHandler(DragDrop.DropEvent, OnDrop);
 
         // 行の選択処理より先に受け取る必要があるので、トンネルで受ける。
         PlaylistBox.AddHandler(PointerPressedEvent, OnPlaylistPointerPressed, RoutingStrategies.Tunnel);
         PlaylistBox.AddHandler(PointerMovedEvent, OnPlaylistPointerMoved, RoutingStrategies.Tunnel);
         PlaylistBox.AddHandler(PointerReleasedEvent, OnPlaylistPointerReleased, RoutingStrategies.Tunnel);
+        PlaylistBox.ContainerPrepared += OnRowPrepared;
 
         viewModel.CurrentItemChanged += OnCurrentItemChanged;
         viewModel.ColumnsChanged += OnColumnsChanged;
@@ -116,7 +130,7 @@ public partial class MainWindow : Window
         {
             if (!MainMenu.IsOpen && MainMenu.IsKeyboardFocusWithin && PlaylistBox.IsVisible)
             {
-                PlaylistBox.Focus();
+                FocusPlaylist();
             }
         });
 
@@ -280,6 +294,7 @@ public partial class MainWindow : Window
         viewModel.PropertyChanged -= OnViewModelPropertyChanged;
         mediaControls?.Dispose();
         mediaControls = null;
+        compactTimer?.Stop();
         closed = true;
         base.OnClosed(e);
     }
@@ -598,6 +613,27 @@ public partial class MainWindow : Window
         flyout.ShowAt(ModeButton);
     }
 
+    /// <summary>「再生」メニューの再生モードを開いた。今のモードに印を付ける（ボタンから変えた場合もあるので、開くたびに合わせる）。</summary>
+    private void OnModeMenuOpened(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem menu || !ReferenceEquals(e.Source, menu))
+        {
+            return;
+        }
+        foreach (MenuItem item in menu.Items.OfType<MenuItem>())
+        {
+            item.IsChecked = item.Tag is string tag && int.Parse(tag, CultureInfo.InvariantCulture) == viewModel.ModeIndex;
+        }
+    }
+
+    private void OnModeMenuClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem { Tag: string tag })
+        {
+            viewModel.ModeIndex = int.Parse(tag, CultureInfo.InvariantCulture);
+        }
+    }
+
     private void OnSettingsClick(object? sender, RoutedEventArgs e) => ShowSettings();
 
     /// <summary>設定画面を開く。すでに開いていれば、それを手前に出す。</summary>
@@ -642,6 +678,16 @@ public partial class MainWindow : Window
     private void OnVolumeUpClick(object? sender, RoutedEventArgs e) => viewModel.ChangeVolume(VolumeStep);
 
     private void OnMuteClick(object? sender, RoutedEventArgs e) => viewModel.IsMuted = !viewModel.IsMuted;
+
+    /// <summary>音量のスライダーの上でホイールを回した。1 段で Ctrl+↑ / Ctrl+↓ と同じだけ変える。</summary>
+    private void OnVolumeWheel(object? sender, PointerWheelEventArgs e)
+    {
+        if (e.Delta.Y != 0)
+        {
+            viewModel.ChangeVolume(Math.Sign(e.Delta.Y) * VolumeStep);
+            e.Handled = true;
+        }
+    }
 
     private void OnVolumeDownClick(object? sender, RoutedEventArgs e) => viewModel.ChangeVolume(-VolumeStep);
 
@@ -720,6 +766,9 @@ public partial class MainWindow : Window
                 movedWithAlt = true;
                 MoveSelected(PlaylistMove.Down);
                 break;
+            case (Key.M, KeyModifiers.None):
+                viewModel.IsMuted = !viewModel.IsMuted;
+                break;
             case (Key.M, KeyModifiers.Control):
                 viewModel.MiniMode = !viewModel.MiniMode;
                 break;
@@ -740,6 +789,7 @@ public partial class MainWindow : Window
         (Key.Space, KeyModifiers.None or KeyModifiers.Control) => true,
         (Key.Left or Key.Right, KeyModifiers.None or KeyModifiers.Control) => true,
         (Key.Up or Key.Down or Key.M or Key.T or Key.OemComma, KeyModifiers.Control) => true,
+        (Key.M, KeyModifiers.None) => true,
         _ => false,
     };
 
@@ -751,7 +801,7 @@ public partial class MainWindow : Window
             // Alt だけを押して離すと、メニューバーが選ばれる。Alt+↑ / Alt+↓ をここで受けた場合も、Alt を離したときに同じことが起きて、
             // 続けて押した矢印キーがメニューに取られる。メニューが選ばれるのはこの後のこともあるので、少し後で閉じる。
             // 閉じてもフォーカスは一覧に戻らない（Alt を押したときにフォーカスのあった行は、並びを変えたときに作り直されている）ので、
-            // 動かした曲の行へ戻す（一覧そのものはフォーカスを受け取らない）。
+            // 動かした曲の行へ戻す。
             movedWithAlt = false;
             Dispatcher.UIThread.Post(() =>
             {
@@ -759,14 +809,28 @@ public partial class MainWindow : Window
                 {
                     MainMenu.Close();
                 }
-                if (!viewModel.MiniMode
-                    && !PlaylistBox.IsKeyboardFocusWithin
-                    && PlaylistBox.SelectedIndex is >= 0 and int index)
+                if (!viewModel.MiniMode && !PlaylistBox.IsKeyboardFocusWithin)
                 {
-                    PlaylistBox.ContainerFromIndex(index)?.Focus();
+                    FocusPlaylist();
                 }
             });
         }
+    }
+
+    /// <summary>
+    /// フォーカスを一覧の選択中の行へ移す。一覧そのもの（ListBox）はフォーカスを受け取らないので、行に渡す。
+    /// 選択中の行がない、または画面の外にあって作られていない場合は、フォーカスを外す
+    /// （どこにもフォーカスがなければキーはウィンドウが受けるので、再生の操作のキーは効く）。
+    /// </summary>
+    private void FocusPlaylist()
+    {
+        if (PlaylistBox.SelectedIndex is >= 0 and int index
+            && PlaylistBox.ContainerFromIndex(index) is { } row
+            && row.Focus())
+        {
+            return;
+        }
+        FocusManager?.Focus(null);
     }
 
     protected override void OnKeyDown(KeyEventArgs e)
@@ -814,6 +878,32 @@ public partial class MainWindow : Window
         }
     }
 
+    /// <summary>
+    /// 一覧の行に曲を割り当てた（スクロールなどで行を作り直した）。行ごとに文字を組み直すので、大きなプレイリストを端から端まで
+    /// スクロールすると、一時オブジェクトが数十 MB たまる（10,000 曲で約 46MB）。放っておくと回収後のヒープも OS に返らない。
+    /// 多くの行を作り直したら、止まった後に 1 回だけヒープを詰めて返す（列の幅のドラッグと同じ対処。SPEC 8.3）。
+    /// </summary>
+    private void OnRowPrepared(object? sender, ContainerPreparedEventArgs e)
+    {
+        if (++preparedSinceCompact < CompactAfterPreparedRows)
+        {
+            return;
+        }
+        compactTimer ??= new DispatcherTimer(CompactDelay, DispatcherPriority.Background, (_, _) => CompactAfterScroll());
+        compactTimer.Stop();
+        compactTimer.Start();
+    }
+
+    private void CompactAfterScroll()
+    {
+        compactTimer?.Stop();
+        preparedSinceCompact = 0;
+        if (!closed)
+        {
+            GC.Collect(GC.MaxGeneration, GCCollectionMode.Aggressive, blocking: true, compacting: true);
+        }
+    }
+
     private void OnCurrentItemChanged(object? sender, EventArgs e) => ScrollToCurrent();
 
     private void ScrollToCurrent()
@@ -836,7 +926,7 @@ public partial class MainWindow : Window
     {
         if (await PickFiles("ファイルを追加") is { Count: > 0 } paths)
         {
-            Select(viewModel.AddPaths(paths));
+            viewModel.AddPaths(paths, onAdded: Select);
         }
     }
 
@@ -849,7 +939,7 @@ public partial class MainWindow : Window
             string[] paths = LocalPaths(folders);
             if (paths.Length > 0)
             {
-                Select(viewModel.AddPaths(paths));
+                viewModel.AddPaths(paths, onAdded: Select);
             }
         }
         catch (Exception ex)
@@ -921,6 +1011,15 @@ public partial class MainWindow : Window
     }
 
     private void OnSelectAllClick(object? sender, RoutedEventArgs e) => PlaylistBox.SelectAll();
+
+    /// <summary>「編集」メニューを開いた。曲を選んでいないときは「プレイリストから削除」を選べなくする（右クリックのメニューと同じ）。</summary>
+    private void OnEditMenuOpened(object? sender, RoutedEventArgs e)
+    {
+        if (ReferenceEquals(e.Source, EditMenu))
+        {
+            EditRemoveItem.IsEnabled = PlaylistBox.SelectedItems?.Count > 0;
+        }
+    }
 
     /// <summary>「移動」を開いたときに、今の選択で並びが変わらない行き先（先頭にある曲の「上へ」など）を選べなくする。</summary>
     private void OnMoveMenuOpened(object? sender, RoutedEventArgs e)
@@ -1106,7 +1205,10 @@ public partial class MainWindow : Window
         {
             selectOnRelease = true;
             e.Handled = true;
-            PlaylistBox.Focus();
+
+            // 押したことを行に渡さないので、行はフォーカスを受け取らない。代わりにここで渡す
+            // （渡さないと、メニューなどに残ったフォーカスに、この後のキーが取られる）。
+            (e.Source as Visual)?.FindAncestorOfType<ListBoxItem>(includeSelf: true)?.Focus();
         }
     }
 
@@ -1158,6 +1260,7 @@ public partial class MainWindow : Window
         {
             reorderItems = null;
             ResetPress();
+            PlaylistDropMarker.IsVisible = false;
         }
     }
 
@@ -1180,13 +1283,56 @@ public partial class MainWindow : Window
         {
             e.DragEffects = e.DataTransfer.Contains(DataFormat.File) ? DragDropEffects.Copy : DragDropEffects.None;
         }
+        UpdateDropMarker(e);
     }
+
+    /// <summary>
+    /// 一覧の中へドラッグしている間、離したときに入る位置（<see cref="DropIndex"/> と同じ位置）に線を出す。
+    /// 一覧の外では消す。外で離すとファイルの場合は設定の動作（置き換えなど）になるので、線の有無でどちらになるかが分かる。
+    /// </summary>
+    private void UpdateDropMarker(DragEventArgs e)
+    {
+        double? y = null;
+        if (e.DragEffects != DragDropEffects.None && IsOverPlaylist(e))
+        {
+            if ((e.Source as Visual)?.FindAncestorOfType<ListBoxItem>(includeSelf: true) is { } row)
+            {
+                bool after = e.GetPosition(row).Y > row.Bounds.Height / 2;
+                y = row.TranslatePoint(new Point(0, after ? row.Bounds.Height : 0), PlaylistBox)?.Y;
+            }
+            else
+            {
+                // 行のない場所（最後の行より下）は末尾に入る。最後の行の下端に出す。曲がなければ一覧の上端。
+                y = viewModel.Items.Count == 0
+                    ? 0
+                    : PlaylistBox.ContainerFromIndex(viewModel.Items.Count - 1) is { } last
+                        ? last.TranslatePoint(new Point(0, last.Bounds.Height), PlaylistBox)?.Y
+                        : null;
+            }
+        }
+
+        if (y is not { } top)
+        {
+            PlaylistDropMarker.IsVisible = false;
+            return;
+        }
+        double height = PlaylistDropMarker.Height;
+        Thickness margin = PlaylistDropMarker.Margin;
+        double clamped = Math.Clamp(top - height / 2, 0, Math.Max(0, PlaylistBox.Bounds.Height - height));
+        PlaylistDropMarker.Margin = new Thickness(margin.Left, clamped, margin.Right, 0);
+        PlaylistDropMarker.IsVisible = true;
+    }
+
+    // 一覧の中の別の部品へ移ったときも、元の部品から「離れた」が届く。その直後に移った先での通知（DragEnter）が来て線を出し直すので、
+    // ここでは消すだけでよい。
+    private void OnDragLeave(object? sender, DragEventArgs e) => PlaylistDropMarker.IsVisible = false;
 
     private bool IsOverPlaylist(DragEventArgs e) =>
         e.Source is Visual visual && (ReferenceEquals(visual, PlaylistBox) || PlaylistBox.IsVisualAncestorOf(visual));
 
     private void OnDrop(object? sender, DragEventArgs e)
     {
+        PlaylistDropMarker.IsVisible = false;
         int? index = DropIndex(e);
         if (reorderItems is { } moving)
         {
@@ -1202,7 +1348,7 @@ public partial class MainWindow : Window
             // 他のアプリから開かれたときと同じく、設定の動作（置き換えて再生 / 末尾に追加 / 追加して再生）に従う。
             if (IsOverPlaylist(e))
             {
-                Select(viewModel.AddPaths(LocalPaths(files), index));
+                viewModel.AddPaths(LocalPaths(files), index, Select);
             }
             else
             {

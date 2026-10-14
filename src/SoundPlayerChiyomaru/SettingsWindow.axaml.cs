@@ -3,6 +3,7 @@ using System.Globalization;
 using System.Text;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
 using SoundPlayerChiyomaru.Core.Output;
@@ -74,6 +75,19 @@ public partial class SettingsWindow : Window
         (AboutImage.Source as Bitmap)?.Dispose();
         AboutImage.Source = null;
         base.OnClosed(e);
+    }
+
+    /// <summary>
+    /// Esc で閉じる。選択欄を開いているときは、選択欄が先に受け取って閉じる（処理済みになる）ので、ウィンドウは閉じない。
+    /// </summary>
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+        if (!e.Handled && e.Key == Key.Escape && e.KeyModifiers == KeyModifiers.None)
+        {
+            e.Handled = true;
+            Close();
+        }
     }
 
     private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs e)

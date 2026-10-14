@@ -41,12 +41,19 @@ public sealed class Playlist
 {
     private const int MaxUndo = 50;
 
+    /// <summary>元に戻せる置き換え（<see cref="Open"/>）の数。</summary>
+    private const int MaxReplaceUndo = 3;
+
     private readonly ItemCollection items = new();
     private readonly List<Snapshot> undoStack = [];
     private readonly List<Snapshot> redoStack = [];
 
-    /// <summary>元に戻すための、ある時点の並びと曲順の番号。番号は項目が持っているので、並びとは別に控える。</summary>
-    private readonly record struct Snapshot(PlaylistItem[] Items, int[] Orders);
+    /// <summary>
+    /// 元に戻すための、ある時点の並びと曲順の番号。番号は項目が持っているので、並びとは別に控える。
+    /// 置き換えの前後では、上書き保存の書き戻し先（<see cref="FilePath"/>）も控える（<paramref name="HasFilePath"/>）。
+    /// それ以外の編集では控えない。控えると、名前を付けて保存した後に編集を戻したとき、書き戻し先まで戻ってしまう。
+    /// </summary>
+    private readonly record struct Snapshot(PlaylistItem[] Items, int[] Orders, bool HasFilePath, string? FilePath);
 
     /// <summary>内容が変わった（編集、元に戻す、読み込み）。</summary>
     public event EventHandler? Changed;
@@ -295,7 +302,25 @@ public sealed class Playlist
         undoStack.Clear();
         redoStack.Clear();
         FilePath = filePath;
+        items.ReplaceAll(CreateItems(entries));
+        OnChanged();
+    }
 
+    /// <summary>
+    /// 別のプレイリストに置き換える。<see cref="Load(IEnumerable{PlaylistEntry}, string?)"/> と違い、1 回の編集として元に戻せる
+    /// （戻すと、<see cref="FilePath"/> も置き換える前のものに戻る）。曲順の番号の振り方は Load と同じ。
+    /// </summary>
+    public void Open(IEnumerable<PlaylistEntry> entries, string? filePath)
+    {
+        PlaylistItem[] newItems = CreateItems(entries);
+        PushUndo(withFilePath: true);
+        FilePath = filePath;
+        items.ReplaceAll(newItems);
+        OnChanged();
+    }
+
+    private static PlaylistItem[] CreateItems(IEnumerable<PlaylistEntry> entries)
+    {
         PlaylistEntry[] loaded = entries.ToArray();
         var newItems = new PlaylistItem[loaded.Length];
         int order = 0;
@@ -312,9 +337,7 @@ public sealed class Playlist
                 item.Order = order < int.MaxValue ? ++order : order;
             }
         }
-
-        items.ReplaceAll(newItems);
-        OnChanged();
+        return newItems;
     }
 
     public void Undo() => Restore(undoStack, redoStack);
@@ -330,19 +353,23 @@ public sealed class Playlist
 
         Snapshot snapshot = from[^1];
         from.RemoveAt(from.Count - 1);
-        to.Add(Capture());
+        to.Add(Capture(snapshot.HasFilePath));
         for (int i = 0; i < snapshot.Items.Length; i++)
         {
             snapshot.Items[i].Order = snapshot.Orders[i];
+        }
+        if (snapshot.HasFilePath)
+        {
+            FilePath = snapshot.FilePath;
         }
         items.ReplaceAll(snapshot.Items);
         OnChanged();
     }
 
-    private Snapshot Capture()
+    private Snapshot Capture(bool withFilePath)
     {
         PlaylistItem[] current = items.ToArray();
-        return new Snapshot(current, Array.ConvertAll(current, item => item.Order));
+        return new Snapshot(current, Array.ConvertAll(current, item => item.Order), withFilePath, withFilePath ? FilePath : null);
     }
 
     private static int MaxOrder(IEnumerable<PlaylistItem> source)
@@ -369,12 +396,19 @@ public sealed class Playlist
         OnChanged();
     }
 
-    private void PushUndo()
+    private void PushUndo(bool withFilePath = false)
     {
-        undoStack.Add(Capture());
+        undoStack.Add(Capture(withFilePath));
         if (undoStack.Count > MaxUndo)
         {
             undoStack.RemoveAt(0);
+        }
+
+        // 置き換えの履歴は、置き換える前の曲を丸ごと持ち続ける。大きなプレイリストを何度も開いてもメモリを使いすぎないよう、
+        // 古い置き換えは、それより前の履歴ごと捨てる（途中だけを捨てると、戻したときに並びが飛ぶ）。
+        while (undoStack.Count(snapshot => snapshot.HasFilePath) > MaxReplaceUndo)
+        {
+            undoStack.RemoveRange(0, undoStack.FindIndex(snapshot => snapshot.HasFilePath) + 1);
         }
         redoStack.Clear();
     }

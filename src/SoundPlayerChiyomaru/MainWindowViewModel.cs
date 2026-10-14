@@ -50,6 +50,14 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IDisposable
     // エクスプローラーで複数のファイルを選んで開くと、ファイルごとのプロセスが続けて起動する。
     // プロセスの起動には 1 個あたり 0.1 秒ほどかかるので、それより十分長い間隔までを 1 回の操作とみなす。
     private readonly ExternalOpenPlanner openPlanner = new(TimeSpan.FromMilliseconds(700));
+
+    /// <summary>開く・追加の展開を 1 つずつ、届いた順に行うための門（<see cref="RunInOrder"/>）。</summary>
+    private readonly SemaphoreSlim expandGate = new(1, 1);
+
+    /// <summary>フォルダの中を探すのにこれより長くかかったら、探している最中であることを出す（すぐ終わるときに表示がちらつかないように）。</summary>
+    private static readonly TimeSpan SearchingNoticeDelay = TimeSpan.FromMilliseconds(500);
+    private const string SearchingNotice = "フォルダの中の曲を探しています…";
+
     private PlayerState state;
     private string? noticeText;
     private bool syncingFromPlayback;
@@ -691,71 +699,124 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IDisposable
     /// <summary>
     /// プレイリストを置き換えて、先頭から再生する。プレイリストファイルを 1 個だけ渡された場合は、
     /// その中身を読み込み、「上書き保存」の書き戻し先として覚える。
+    /// 置き換えは元に戻せる（SPEC 4.1）。再生できる曲が 1 つもなければ、置き換えない。
     /// </summary>
     public void OpenPaths(IReadOnlyList<string> paths)
     {
-        Run(() =>
+        bool playlistFile = paths.Count == 1 && PlaylistFile.IsPlaylistFile(paths[0]);
+        RunInOrder(paths, expand: !playlistFile, expanded => Run(() =>
         {
-            if (paths.Count == 1 && PlaylistFile.IsPlaylistFile(paths[0]))
+            IReadOnlyList<PlaylistEntry> entries;
+            string? file = null;
+            if (playlistFile)
             {
-                string file = Path.GetFullPath(paths[0]);
-                playlist.Load(PlaylistFile.ReadEntries(file), file);
+                file = Path.GetFullPath(paths[0]);
+                entries = PlaylistFile.ReadEntries(file);
             }
             else
             {
-                playlist.Load(expander.Expand(paths), null);
+                entries = expanded.Select(path => new PlaylistEntry(path)).ToArray();
             }
 
-            if (playlist.Count == 0)
+            if (entries.Count == 0)
             {
-                player.Select(null);
                 ErrorText = "再生できるファイルがありません";
+                return;
             }
-            else
-            {
-                player.Play(playlist.Items[0]);
-            }
-        }, "開けません");
+            playlist.Open(entries, file);
+            player.Play(playlist.Items[0]);
+        }, "開けません"));
     }
 
-    /// <summary>プレイリストに追加する。空のプレイリストに追加して、何も再生していなければ、追加した曲から再生する。</summary>
+    /// <summary>
+    /// プレイリストに追加する。空のプレイリストに追加して、何も再生していなければ、追加した曲から再生する。
+    /// フォルダを含むときは、追加されるのは中を探し終えた後になる（<see cref="RunInOrder"/>）。
+    /// </summary>
     /// <param name="index">挿入位置。null なら末尾。</param>
-    /// <returns>追加された項目。</returns>
-    public IReadOnlyList<PlaylistItem> AddPaths(IReadOnlyList<string> paths, int? index = null) =>
-        AddPaths(paths, index, out _);
+    /// <param name="onAdded">追加した後に、追加された項目を受け取る。</param>
+    public void AddPaths(IReadOnlyList<string> paths, int? index = null, Action<IReadOnlyList<PlaylistItem>>? onAdded = null) =>
+        AddPaths(paths, index, (added, _) => onAdded?.Invoke(added));
 
-    /// <param name="first">
-    /// 渡された曲のうち最初の曲に当たる項目。重複の除外で追加されなかった場合は、すでにプレイリストにある同じ曲。
-    /// 曲が 1 つもなければ null。
+    /// <param name="onAdded">
+    /// 追加された項目と、渡された曲のうち最初の曲に当たる項目を受け取る。後者は、重複の除外で追加されなかった場合は、
+    /// すでにプレイリストにある同じ曲。曲が 1 つもなければ null。
     /// </param>
-    private IReadOnlyList<PlaylistItem> AddPaths(IReadOnlyList<string> paths, int? index, out PlaylistItem? first)
-    {
-        IReadOnlyList<PlaylistItem> added = [];
-        PlaylistItem? firstItem = null;
-        Run(() =>
+    private void AddPaths(IReadOnlyList<string> paths, int? index, Action<IReadOnlyList<PlaylistItem>, PlaylistItem?> onAdded) =>
+        RunInOrder(paths, expand: true, expanded =>
         {
-            bool startPlaying = playlist.Count == 0 && playback.CurrentPath is null;
-            IReadOnlyList<string> expanded = expander.Expand(paths);
-            IReadOnlyList<string> wanted = settings.ExcludeDuplicates
-                ? PlaylistDuplicates.Exclude(expanded, playlist.Items)
-                : expanded;
-            added = playlist.Insert(index ?? playlist.Count, wanted);
-            if (expanded.Count > 0)
+            IReadOnlyList<PlaylistItem> added = [];
+            PlaylistItem? first = null;
+            Run(() =>
             {
-                firstItem = added.FirstOrDefault(item => SamePath(item.Path, expanded[0]))
-                    ?? playlist.Items.FirstOrDefault(item => SamePath(item.Path, expanded[0]));
-            }
-            if (startPlaying && added.Count > 0)
+                bool startPlaying = playlist.Count == 0 && playback.CurrentPath is null;
+                IReadOnlyList<string> wanted = settings.ExcludeDuplicates
+                    ? PlaylistDuplicates.Exclude(expanded, playlist.Items)
+                    : expanded;
+                added = playlist.Insert(index ?? playlist.Count, wanted);
+                if (expanded.Count > 0)
+                {
+                    first = added.FirstOrDefault(item => SamePath(item.Path, expanded[0]))
+                        ?? playlist.Items.FirstOrDefault(item => SamePath(item.Path, expanded[0]));
+                }
+                if (startPlaying && added.Count > 0)
+                {
+                    player.Play(added[0]);
+                }
+                if (wanted.Count < expanded.Count)
+                {
+                    NoticeText = $"重複する {expanded.Count - wanted.Count} 曲は追加しませんでした。";
+                }
+            }, "追加できません");
+            onAdded(added, first);
+        });
+
+    /// <summary>
+    /// 開く・追加で渡されたパスを曲のファイルの並びに展開して（<paramref name="expand"/> が false ならそのまま）、
+    /// <paramref name="apply"/> に渡す。前の展開が終わっていなければ、その後に行う（届いた順に反映する）。
+    /// フォルダを含むときは、中を探す処理を別のスレッドで行い、画面を止めない（ネットワーク上の大きなフォルダでも。SPEC 4.1）。
+    /// 前の展開を待つ必要がなく、フォルダも含まないときは、この呼び出しの中で終わる（起動時に渡された曲は、すぐ再生を始められる）。
+    /// </summary>
+    private async void RunInOrder(IReadOnlyList<string> paths, bool expand, Action<IReadOnlyList<string>> apply)
+    {
+        try
+        {
+            await expandGate.WaitAsync();
+            try
             {
-                player.Play(added[0]);
+                IReadOnlyList<string> expanded = paths;
+                if (expand && paths.Any(Directory.Exists))
+                {
+                    Task<IReadOnlyList<string>> searching = Task.Run(() => expander.Expand(paths));
+                    if (await Task.WhenAny(searching, Task.Delay(SearchingNoticeDelay)) != searching)
+                    {
+                        NoticeText = SearchingNotice;
+                    }
+                    expanded = await searching;
+                    if (NoticeText == SearchingNotice)
+                    {
+                        NoticeText = null;
+                    }
+                }
+                else if (expand)
+                {
+                    expanded = expander.Expand(paths);
+                }
+                apply(expanded);
             }
-            if (wanted.Count < expanded.Count)
+            finally
             {
-                NoticeText = $"重複する {expanded.Count - wanted.Count} 曲は追加しませんでした。";
+                expandGate.Release();
             }
-        }, "追加できません");
-        first = firstItem;
-        return added;
+        }
+        catch (Exception ex)
+        {
+            // 呼び出し元へは返せない（待っている間に戻っている）ので、ここで表示する。
+            if (NoticeText == SearchingNotice)
+            {
+                NoticeText = null;
+            }
+            ErrorText = $"開けません: {ex.Message}";
+        }
     }
 
     private static bool SamePath(string a, string b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
@@ -827,18 +888,22 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IDisposable
             case ExternalOpenOperation.AddAndPlay:
                 // 空のプレイリストに追加した場合は AddPaths が再生を始めているので、重ねて再生し直さない。
                 // 重複の除外で追加されなかった場合も、すでにある同じ曲を再生する（開いた曲が鳴らないままにしない）。
-                AddPaths(paths, null, out PlaylistItem? first);
-                if (first is not null && !(ReferenceEquals(player.Current, first) && isPlaying))
+                AddPaths(paths, null, (_, first) =>
                 {
-                    PlayItemKeepingNotice(first);
-                }
+                    if (first is not null && !(ReferenceEquals(player.Current, first) && isPlaying))
+                    {
+                        PlayItemKeepingNotice(first);
+                    }
+                });
                 break;
             case ExternalOpenOperation.AddAndPlayIfIdle:
-                AddPaths(paths, null, out PlaylistItem? added);
-                if (added is not null && !isPlaying)
+                AddPaths(paths, null, (_, first) =>
                 {
-                    PlayItemKeepingNotice(added);
-                }
+                    if (first is not null && !isPlaying)
+                    {
+                        PlayItemKeepingNotice(first);
+                    }
+                });
                 break;
         }
     }
