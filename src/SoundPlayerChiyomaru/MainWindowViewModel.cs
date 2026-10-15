@@ -1031,7 +1031,17 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IDisposable
 
     public void Redo() => playlist.Redo();
 
-    public void Sort(PlaylistSortKey key) => playlist.Sort(key);
+    /// <summary>並べ替える。すでにその鍵で昇順なら降順にする（Playlist.Sort）。</summary>
+    public void Sort(PlaylistSortKey key)
+    {
+        playlist.Sort(key);
+
+        // 並びが変わらなかった（すでに並んでいた）場合は、プレイリストの変更の通知が来ないので、ここで知らせる。
+        OnPropertyChanged(nameof(SortState));
+    }
+
+    /// <summary>最後に行った並べ替え（列の見出しの印に使う）。並べた後に編集すると null になる。</summary>
+    public PlaylistSortState? SortState => playlist.SortState;
 
     /// <summary>プレイリストの並びを無作為に入れ替える。再生中の曲は先頭に置く。</summary>
     public void Shuffle() => playlist.Shuffle(Random.Shared, player.Current);
@@ -1168,6 +1178,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IDisposable
     private void OnPlaylistChanged(object? sender, EventArgs e)
     {
         infoLoader.Enqueue(playlist.Items);
+        OnPropertyChanged(nameof(SortState));
         HasItems = playlist.Count > 0;
         CanUndo = playlist.CanUndo;
         CanRedo = playlist.CanRedo;

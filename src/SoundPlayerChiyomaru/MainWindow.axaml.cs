@@ -138,14 +138,7 @@ public partial class MainWindow : Window
             }
         });
 
-        // メニューのキーの表示は、キーの名前（OemComma）がそのまま出る。他の項目と同じ見た目のまま、文字だけを差し替える。
-        SettingsMenuItem.TemplateApplied += (_, e) =>
-        {
-            if (e.NameScope.Find<TextBlock>("PART_InputGestureText") is { } gesture)
-            {
-                gesture.Text = "Ctrl+,";
-            }
-        };
+        SettingsMenuItem.TemplateApplied += ShowCommaGesture;
 
         // 離したことを受け取れないまま別のウィンドウへ移った場合に、押されたままの扱いを残さない。
         Deactivated += (_, _) =>
@@ -427,6 +420,15 @@ public partial class MainWindow : Window
         {
             Topmost = viewModel.AlwaysOnTop;
         }
+        else if (e.PropertyName == nameof(MainWindowViewModel.Theme) && Application.Current is { } app)
+        {
+            // 配色は「表示」メニューからも設定画面からも変えられるので、どちらから変えてもここで反映する。
+            ThemeManager.Apply(app, viewModel.Theme);
+        }
+        else if (e.PropertyName == nameof(MainWindowViewModel.SortState))
+        {
+            UpdateSortIndicator();
+        }
     }
 
     /// <summary>
@@ -619,6 +621,129 @@ public partial class MainWindow : Window
             flyout.Items.Add(item);
         }
         flyout.ShowAt(ModeButton);
+    }
+
+    /// <summary>メニューのキーの表示は、キーの名前（OemComma）がそのまま出る。他の項目と同じ見た目のまま、文字だけを差し替える。</summary>
+    private static void ShowCommaGesture(object? sender, Avalonia.Controls.Primitives.TemplateAppliedEventArgs e)
+    {
+        if (e.NameScope.Find<TextBlock>("PART_InputGestureText") is { } gesture)
+        {
+            gesture.Text = "Ctrl+,";
+        }
+    }
+
+    /// <summary>「表示」メニューの配色を開いた。今の配色に印を付ける（設定画面から変えた場合もあるので、開くたびに合わせる）。</summary>
+    private void OnThemeMenuOpened(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not MenuItem menu || !ReferenceEquals(e.Source, menu))
+        {
+            return;
+        }
+        foreach (MenuItem item in menu.Items.OfType<MenuItem>())
+        {
+            item.IsChecked = item.Tag is string tag && int.Parse(tag, CultureInfo.InvariantCulture) == (int)viewModel.Theme;
+        }
+    }
+
+    private void OnThemeMenuClick(object? sender, RoutedEventArgs e)
+    {
+        if (sender is MenuItem { Tag: string tag })
+        {
+            viewModel.Theme = (AppTheme)int.Parse(tag, CultureInfo.InvariantCulture);
+        }
+    }
+
+    /// <summary>
+    /// 再生画面の右クリックのメニューを開く。メニューバーの「ファイル」「再生」「表示」「出力」を写して、「閉じる」の前に入れる。
+    /// 部品は 1 か所にしか置けないので、メニューバーの項目そのものは使えない。開くたびに写す（起動時には作らない）。
+    /// </summary>
+    private void OnHeaderMenuOpening(object? sender, System.ComponentModel.CancelEventArgs e)
+    {
+        if (sender is not ContextMenu menu)
+        {
+            return;
+        }
+
+        // 「閉じる」とその前の区切りは XAML に置いてある。前に開いたときの写しを取り除いてから入れ直す。
+        while (menu.Items.Count > 2)
+        {
+            menu.Items.RemoveAt(0);
+        }
+        MenuItem[] sources = [FileMenu, PlayMenu, ViewMenu, OutputMenu];
+        for (int i = 0; i < sources.Length; i++)
+        {
+            menu.Items.Insert(i, CopyMenuEntry(sources[i]));
+        }
+    }
+
+    /// <summary>
+    /// メニューバーの項目を、右クリックのメニュー用に写す。押したときはメニューバーの項目を押したことにする（処理を二重に持たない）。
+    /// 有効・無効やチェックの状態は、写した時点のものを使う（メニューは開いている間しか使わない）。
+    /// 下の階層は、開いたときに写す。その前にメニューバーの側に「開いた」ことを知らせて、中身や印を作り直させる
+    /// （「出力」のように開くたびに作る項目や、今の再生モードに印を付ける項目があるため）。
+    /// </summary>
+    private Control CopyMenuEntry(object? source)
+    {
+        if (source is not MenuItem item)
+        {
+            return new Separator();
+        }
+
+        var copy = new MenuItem
+        {
+            Header = item.Header is string header ? WithoutAccessKey(header) : item.Header,
+            InputGesture = item.InputGesture,
+            ToggleType = item.ToggleType,
+            IsChecked = item.IsChecked,
+            IsEnabled = item.IsEnabled,
+        };
+        if (item.Name == "SettingsMenuItem")
+        {
+            copy.TemplateApplied += ShowCommaGesture;
+        }
+
+        if (item.Items.Count == 0)
+        {
+            copy.Click += (_, _) => item.RaiseEvent(new RoutedEventArgs(MenuItem.ClickEvent, item));
+            return copy;
+        }
+
+        // 下の階層があることを示す「>」を出すために、仮の項目を 1 つ入れておく。
+        copy.Items.Add(new MenuItem());
+        copy.SubmenuOpened += (_, e) =>
+        {
+            if (!ReferenceEquals(e.Source, copy))
+            {
+                return;
+            }
+
+            // メニューバーの直下の項目にこの通知を送ると、メニューバーは自分が開いたものとして扱い、開いたままになる。
+            // その間は再生の操作のキーが効かない（OnPreviewKeyDown はメニューが開いている間は何もしない）ので、閉じておく。
+            bool menuWasOpen = MainMenu.IsOpen;
+            item.RaiseEvent(new RoutedEventArgs(MenuItem.SubmenuOpenedEvent, item));
+            if (!menuWasOpen && MainMenu.IsOpen)
+            {
+                MainMenu.Close();
+            }
+            copy.Items.Clear();
+            foreach (object? child in item.Items)
+            {
+                copy.Items.Add(CopyMenuEntry(child));
+            }
+        };
+        return copy;
+    }
+
+    /// <summary>
+    /// 見出しから文字キーの表記（「(F)」の部分）を取り除く。右クリックのメニューでは文字キーで選べないため。
+    /// 名前の中の「_」を表す「__」（デバイス名など）は、そのまま残す。
+    /// </summary>
+    private static string WithoutAccessKey(string header)
+    {
+        int start = header.IndexOf("(_", StringComparison.Ordinal);
+        return start >= 0 && start + 3 < header.Length && header[start + 2] != '_' && header[start + 3] == ')'
+            ? header.Remove(start, 4)
+            : header;
     }
 
     /// <summary>「再生」メニューの再生モードを開いた。今のモードに印を付ける（ボタンから変えた場合もあるので、開くたびに合わせる）。</summary>

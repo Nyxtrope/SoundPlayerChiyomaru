@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
+using SoundPlayerChiyomaru.Core.Playlists;
 using SoundPlayerChiyomaru.Core.Settings;
 
 namespace SoundPlayerChiyomaru;
@@ -21,6 +22,16 @@ public partial class MainWindow
     /// <summary>列の名前。並びは <see cref="PlaylistColumn"/> の値の順。</summary>
     private static readonly string[] ColumnNames =
         ["トラック番号", "タイトル", "アーティスト", "アルバム", "アルバムアーティスト", "時間", "ファイル名", "曲順（#）"];
+
+    /// <summary>見出しをクリックしたときの並べ替えの鍵。並びは <see cref="PlaylistColumn"/> の値の順。</summary>
+    private static readonly PlaylistSortKey[] ColumnSortKeys =
+    [
+        PlaylistSortKey.TrackNumber, PlaylistSortKey.Title, PlaylistSortKey.Artist, PlaylistSortKey.Album,
+        PlaylistSortKey.AlbumArtist, PlaylistSortKey.Duration, PlaylistSortKey.FileName, PlaylistSortKey.Order,
+    ];
+
+    /// <summary>見出しの元の文字（XAML に書いたもの）。並べ替えの印（▲▼）を付け外しするときに使う。</summary>
+    private string[]? headerTexts;
 
     private ColumnDrag? columnDrag;
 
@@ -337,6 +348,31 @@ public partial class MainWindow
         if (drag.Moving)
         {
             viewModel.MoveColumn(drag.Index, drag.Before);
+        }
+        else if (drag.StartWidths is null && new Rect(ColumnHeader.Bounds.Size).Contains(e.GetPosition(ColumnHeader)))
+        {
+            // 境目ではない場所を押して、動かさずに見出しの上で離した（クリック）。その列で並べ替える。
+            viewModel.Sort(ColumnSortKeys[(int)viewModel.Columns[drag.Index].Id]);
+        }
+    }
+
+    /// <summary>
+    /// 最後に並べ替えた列の見出しに、向きの印（昇順 ▲、降順 ▼）を付ける。並べた後に編集すると消える（Playlist.SortState）。
+    /// 印はどの列でも名前の後ろに付ける。右寄せの列（曲順、トラック番号、時間）では、その間だけ見出しの名前が印の分だけ左へずれる。
+    /// </summary>
+    private void UpdateSortIndicator()
+    {
+        headerTexts ??= [.. ColumnHeader.Children.Select(child => ((child as Border)?.Child as TextBlock)?.Text ?? "")];
+        PlaylistSortState? state = viewModel.SortState;
+        for (int i = 0; i < ColumnHeader.Children.Count && i < ColumnSortKeys.Length; i++)
+        {
+            if ((ColumnHeader.Children[i] as Border)?.Child is not TextBlock header)
+            {
+                continue;
+            }
+            string name = headerTexts[i];
+            string? arrow = state is { } sorted && sorted.Key == ColumnSortKeys[i] ? (sorted.Descending ? "▼" : "▲") : null;
+            header.Text = arrow is null ? name : $"{name} {arrow}";
         }
     }
 

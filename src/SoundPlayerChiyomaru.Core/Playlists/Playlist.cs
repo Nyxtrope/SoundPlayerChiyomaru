@@ -9,13 +9,29 @@ public enum PlaylistSortKey
 {
     FileName,
     Title,
+
+    /// <summary>アーティスト、同じならアルバム、トラック番号。</summary>
     Artist,
+
+    /// <summary>アルバム、同じならトラック番号。</summary>
     Album,
     Path,
 
     /// <summary>曲順の番号（<see cref="PlaylistItem.Order"/>）。シャッフルや並べ替えの前の順に戻すために使う。</summary>
     Order,
+
+    /// <summary>トラック番号、同じならアルバム。</summary>
+    TrackNumber,
+
+    /// <summary>アルバムアーティスト、同じならアルバム、トラック番号。</summary>
+    AlbumArtist,
+
+    /// <summary>長さ。</summary>
+    Duration,
 }
+
+/// <summary>最後に行った並べ替え。並べ替えた後に編集すると消える（<see cref="Playlist.SortState"/>）。</summary>
+public readonly record struct PlaylistSortState(PlaylistSortKey Key, bool Descending);
 
 /// <summary>選んだ曲をまとめて動かす先。</summary>
 public enum PlaylistMove
@@ -48,6 +64,9 @@ public sealed class Playlist
     private readonly List<Snapshot> undoStack = [];
     private readonly List<Snapshot> redoStack = [];
 
+    /// <summary>並べ替えの最中。その変更の通知では <see cref="SortState"/> を消さない。</summary>
+    private bool sorting;
+
     /// <summary>
     /// 元に戻すための、ある時点の並びと曲順の番号。番号は項目が持っているので、並びとは別に控える。
     /// 置き換えの前後では、上書き保存の書き戻し先（<see cref="FilePath"/>）も控える（<paramref name="HasFilePath"/>）。
@@ -76,6 +95,12 @@ public sealed class Playlist
 
     /// <summary>読み込み元、または最後に保存したプレイリストファイル。「上書き保存」の書き戻し先。</summary>
     public string? FilePath { get; set; }
+
+    /// <summary>
+    /// 最後に行った並べ替え。並べた後に編集（追加・削除・移動・元に戻すなど）すると、並んでいるとは限らなくなるので null に戻る。
+    /// タグを読み終えて値が変わっても戻らない（編集ではないため）。
+    /// </summary>
+    public PlaylistSortState? SortState { get; private set; }
 
     public bool CanUndo => undoStack.Count > 0;
 
@@ -221,32 +246,98 @@ public sealed class Playlist
         return [.. before, .. moved, .. after];
     }
 
-    /// <summary>安定ソート。タグが未読み込みの項目はファイル名で比べる。</summary>
-    public void Sort(PlaylistSortKey key)
+    /// <summary>
+    /// 安定ソート。すでにその鍵で昇順に並んでいれば降順に、そうでなければ昇順に並べる（同じ列をもう一度選ぶと逆になる）。
+    /// 逆にしても並びが変わらない場合（曲が 1 つ、すべて同じ値など）は昇順として扱う。
+    /// 降順で逆になるのは最初の鍵だけで、同じ値の中の並び（アルバムの中のトラック番号など）は昇順のまま。
+    /// 値のない曲（タグがない、長さが分からないなど）は、どちらの向きでも最後に置く。タグが未読み込みの曲のタイトルはファイル名で比べる。
+    /// </summary>
+    /// <returns>並べた鍵と向き（曲が 1 つ以上あれば <see cref="SortState"/> と同じ）。</returns>
+    public PlaylistSortState Sort(PlaylistSortKey key)
+    {
+        PlaylistItem[] ascending = Arrange(key, descending: false);
+        bool descending = false;
+        PlaylistItem[] arranged = ascending;
+        if (items.SequenceEqual(ascending))
+        {
+            PlaylistItem[] reversed = Arrange(key, descending: true);
+            if (!reversed.SequenceEqual(ascending))
+            {
+                descending = true;
+                arranged = reversed;
+            }
+        }
+
+        // 並びが変わらなかった（すでに並んでいた）場合も、並べた状態にする。曲がなければ、並べたことにはしない（見出しに印を出さない）。
+        // 並びを変える前に入れておく。変わったときの通知（Changed）を受けた側が、新しい状態を読めるように。
+        var result = new PlaylistSortState(key, descending);
+        SortState = items.Count > 0 ? result : null;
+
+        sorting = true;
+        try
+        {
+            Replace(arranged);
+        }
+        finally
+        {
+            sorting = false;
+        }
+        return result;
+    }
+
+    private PlaylistItem[] Arrange(PlaylistSortKey key, bool descending)
     {
         // 「2.mp3」が「10.mp3」より前に来るよう、数字は数値として比べる。
         var comparer = StringComparer.Create(
             CultureInfo.CurrentCulture,
             CompareOptions.IgnoreCase | CompareOptions.NumericOrdering);
 
+        // 最初の鍵。向きはこの鍵にだけ効く。値のない曲は、向きにかかわらず後ろに置く。
+        IOrderedEnumerable<PlaylistItem> By<T>(Func<PlaylistItem, T> value, IComparer<T> order) =>
+            descending ? items.OrderByDescending(value, order) : items.OrderBy(value, order);
+
+        IOrderedEnumerable<PlaylistItem> ByText(Func<PlaylistItem, string?> value)
+        {
+            IOrderedEnumerable<PlaylistItem> present = items.OrderBy(item => string.IsNullOrWhiteSpace(value(item)));
+            return descending
+                ? present.ThenByDescending(item => value(item) ?? "", comparer)
+                : present.ThenBy(item => value(item) ?? "", comparer);
+        }
+
+        IOrderedEnumerable<PlaylistItem> ByNumber<T>(Func<PlaylistItem, T?> value) where T : struct
+        {
+            IOrderedEnumerable<PlaylistItem> present = items.OrderBy(item => value(item) is null);
+            return descending
+                ? present.ThenByDescending(item => value(item) ?? default)
+                : present.ThenBy(item => value(item) ?? default);
+        }
+
         IOrderedEnumerable<PlaylistItem> sorted = key switch
         {
-            PlaylistSortKey.Title => items.OrderBy(item => item.DisplayTitle, comparer),
-            PlaylistSortKey.Artist => items
-                .OrderBy(item => item.Artist ?? "", comparer)
-                .ThenBy(item => item.Album ?? "", comparer)
-                .ThenBy(item => item.TrackNumber),
-            PlaylistSortKey.Album => items
-                .OrderBy(item => item.Album ?? "", comparer)
-                .ThenBy(item => item.TrackNumber),
-            PlaylistSortKey.Path => items.OrderBy(item => item.Path, comparer),
-            PlaylistSortKey.Order => items.OrderBy(item => item.Order),
-            _ => items.OrderBy(item => item.FileName, comparer),
+            PlaylistSortKey.Title => By(item => item.DisplayTitle, comparer),
+            PlaylistSortKey.Artist => ThenByTrack(ThenByText(ByText(item => item.Artist), item => item.Album, comparer)),
+            PlaylistSortKey.Album => ThenByTrack(ByText(item => item.Album)),
+            PlaylistSortKey.AlbumArtist => ThenByTrack(ThenByText(ByText(item => item.AlbumArtist), item => item.Album, comparer)),
+            PlaylistSortKey.TrackNumber => ThenByText(ByNumber(TrackNumberOrNull), item => item.Album, comparer),
+            PlaylistSortKey.Duration => ByNumber(item => item.Duration),
+            PlaylistSortKey.Path => By(item => item.Path, comparer),
+            PlaylistSortKey.Order => By(item => item.Order, Comparer<int>.Default),
+            _ => By(item => item.FileName, comparer),
         };
-
-        Replace(sorted.ToArray());
+        return sorted.ToArray();
     }
 
+    /// <summary>トラック番号。0 はタグにない（分からない）ことを表すので null にする。</summary>
+    private static uint? TrackNumberOrNull(PlaylistItem item) => item.TrackNumber == 0 ? null : item.TrackNumber;
+
+    /// <summary>2 番目以降の鍵（文字列）。値のない曲を後ろにして、向きにかかわらず昇順で比べる。</summary>
+    private static IOrderedEnumerable<PlaylistItem> ThenByText(
+        IOrderedEnumerable<PlaylistItem> source, Func<PlaylistItem, string?> value, StringComparer comparer) =>
+        source.ThenBy(item => string.IsNullOrWhiteSpace(value(item))).ThenBy(item => value(item) ?? "", comparer);
+
+    /// <summary>2 番目以降の鍵（トラック番号）。番号のない曲を後ろにして、向きにかかわらず昇順で比べる。</summary>
+    private static IOrderedEnumerable<PlaylistItem> ThenByTrack(IOrderedEnumerable<PlaylistItem> source) =>
+        source.ThenBy(item => TrackNumberOrNull(item) is null).ThenBy(item => item.TrackNumber);
     public void Clear() => Replace([]);
 
     /// <summary>
@@ -413,7 +504,14 @@ public sealed class Playlist
         redoStack.Clear();
     }
 
-    private void OnChanged() => Changed?.Invoke(this, EventArgs.Empty);
+    private void OnChanged()
+    {
+        if (!sorting)
+        {
+            SortState = null;
+        }
+        Changed?.Invoke(this, EventArgs.Empty);
+    }
 
     /// <summary>まとめての挿入・入れ替えを 1 回の通知で済ませるコレクション。</summary>
     private sealed class ItemCollection : ObservableCollection<PlaylistItem>

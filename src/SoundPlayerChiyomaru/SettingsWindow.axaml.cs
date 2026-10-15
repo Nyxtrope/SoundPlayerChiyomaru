@@ -1,7 +1,6 @@
 using System.ComponentModel;
 using System.Globalization;
 using System.Text;
-using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
@@ -316,11 +315,10 @@ public partial class SettingsWindow : Window
 
     private void OnThemeChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (!loading && ThemeBox.SelectedIndex >= 0 && Application.Current is { } app)
+        // 反映（ThemeManager.Apply）は、メインウィンドウが ViewModel の変更を受けて行う。
+        if (!loading && ThemeBox.SelectedIndex >= 0)
         {
-            var theme = (AppTheme)ThemeBox.SelectedIndex;
-            viewModel.Theme = theme;
-            ThemeManager.Apply(app, theme);
+            viewModel.Theme = (AppTheme)ThemeBox.SelectedIndex;
         }
     }
 

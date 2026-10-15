@@ -178,10 +178,109 @@ public class PlaylistTests
         playlist.Items[2].ApplyInfo(new TrackInfo("Z", "Artist", "Album", 2, null), exists: true);
 
         playlist.Sort(PlaylistSortKey.Album);
-        Assert.Equal("untagged,x1,x2,x3", Paths);
+        Assert.Equal("x1,x2,x3,untagged", Paths);
 
         playlist.Sort(PlaylistSortKey.Title);
         Assert.Equal("x1,x3,untagged,x2", Paths);
+    }
+
+    /// <summary>a〜e にタグを付ける。e はタグなし（値のない曲）。</summary>
+    private void AddTagged()
+    {
+        playlist.Add(["a", "b", "c", "d", "e"]);
+        playlist.Items[0].ApplyInfo(new TrackInfo("T1", "Beta", "Album Y", 2, TimeSpan.FromSeconds(200), "AA2"), exists: true);
+        playlist.Items[1].ApplyInfo(new TrackInfo("T2", "Alpha", "Album X", 1, TimeSpan.FromSeconds(100), "AA1"), exists: true);
+        playlist.Items[2].ApplyInfo(new TrackInfo("T3", "Beta", "Album Y", 1, TimeSpan.FromSeconds(300), "AA2"), exists: true);
+        playlist.Items[3].ApplyInfo(new TrackInfo("T4", "Alpha", "Album X", 2, null, "AA1"), exists: true);
+    }
+
+    [Theory]
+    [InlineData(PlaylistSortKey.Artist, "b,d,c,a,e", "c,a,b,d,e")]
+    [InlineData(PlaylistSortKey.Album, "b,d,c,a,e", "c,a,b,d,e")]
+    [InlineData(PlaylistSortKey.AlbumArtist, "b,d,c,a,e", "c,a,b,d,e")]
+    [InlineData(PlaylistSortKey.TrackNumber, "b,c,d,a,e", "d,a,b,c,e")]
+    [InlineData(PlaylistSortKey.Duration, "b,a,c,d,e", "c,a,b,d,e")]
+    public void 同じ鍵でもう一度並べ替えると降順になり_逆になるのは最初の鍵だけで_値のない曲は常に最後(
+        PlaylistSortKey key, string ascending, string descending)
+    {
+        AddTagged();
+
+        Assert.Equal(new PlaylistSortState(key, false), playlist.Sort(key));
+        Assert.Equal(ascending, Paths);
+        Assert.Equal(new PlaylistSortState(key, true), playlist.Sort(key));
+        Assert.Equal(descending, Paths);
+        Assert.Equal(new PlaylistSortState(key, false), playlist.Sort(key));
+        Assert.Equal(ascending, Paths);
+    }
+
+    [Fact]
+    public void 並べた後に崩れていれば_同じ鍵でも昇順で並べ直す()
+    {
+        playlist.Add(["c", "a", "b"]);
+        playlist.Sort(PlaylistSortKey.FileName);
+        playlist.Add(["0"]);
+
+        Assert.False(playlist.Sort(PlaylistSortKey.FileName).Descending);
+        Assert.Equal("0,a,b,c", Paths);
+    }
+
+    [Fact]
+    public void 逆にしても変わらない並びは_昇順として扱う()
+    {
+        playlist.Add(["a"]);
+
+        Assert.False(playlist.Sort(PlaylistSortKey.Title).Descending);
+        Assert.False(playlist.Sort(PlaylistSortKey.Title).Descending);
+    }
+
+    [Fact]
+    public void 並べ替えで並びが変わったときの通知では_新しい並べた状態を読める()
+    {
+        playlist.Add(["b", "a"]);
+        playlist.Sort(PlaylistSortKey.Title);
+        var seen = new List<PlaylistSortState?>();
+        playlist.Changed += (_, _) => seen.Add(playlist.SortState);
+
+        playlist.Sort(PlaylistSortKey.Path);
+        playlist.Sort(PlaylistSortKey.Path);
+
+        // a, b はパスでも昇順なので、1 回目は降順、2 回目は昇順になる。
+        Assert.Equal([new PlaylistSortState(PlaylistSortKey.Path, true), new PlaylistSortState(PlaylistSortKey.Path, false)], seen);
+    }
+
+    [Fact]
+    public void 曲がないときは_並べた状態にしない()
+    {
+        playlist.Sort(PlaylistSortKey.Title);
+
+        Assert.Null(playlist.SortState);
+    }
+
+    [Fact]
+    public void 並べた状態は_並びが変わらなくても記録され_編集や元に戻すで消える()
+    {
+        playlist.Add(["a"]);
+        changed = 0;
+        playlist.Sort(PlaylistSortKey.FileName);
+        Assert.Equal(0, changed);
+        Assert.Equal(new PlaylistSortState(PlaylistSortKey.FileName, false), playlist.SortState);
+
+        playlist.Add(["c", "b"]);
+        Assert.Null(playlist.SortState);
+        playlist.Sort(PlaylistSortKey.FileName);
+        playlist.Sort(PlaylistSortKey.FileName);
+        Assert.Equal(new PlaylistSortState(PlaylistSortKey.FileName, true), playlist.SortState);
+        playlist.Undo();
+        Assert.Null(playlist.SortState);
+
+        playlist.Sort(PlaylistSortKey.Path);
+        playlist.Remove(Pick("b"));
+        Assert.Null(playlist.SortState);
+
+        playlist.Sort(PlaylistSortKey.Order);
+        Assert.NotNull(playlist.SortState);
+        playlist.Move(Pick("c"), 0);
+        Assert.Null(playlist.SortState);
     }
 
     [Fact]

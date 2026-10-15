@@ -140,7 +140,7 @@
 
     <DockPanel>
         <Menu x:Name="MainMenu" DockPanel.Dock="Top" IsVisible="{Binding !MiniMode}">
-            <MenuItem Header="ファイル(_F)">
+            <MenuItem x:Name="FileMenu" Header="ファイル(_F)">
                 <MenuItem Header="開く(_O)..." InputGesture="Ctrl+O" Click="OnOpenClick" />
                 <MenuItem Header="ファイルを追加(_A)..." Click="OnAddFilesClick" />
                 <MenuItem Header="フォルダを追加(_D)..." Click="OnAddFolderClick" />
@@ -169,13 +169,17 @@
                     <MenuItem Header="先頭へ(_T)" Tag="Top" Click="OnMoveClick" />
                     <MenuItem Header="最後尾へ(_B)" Tag="Bottom" Click="OnMoveClick" />
                 </MenuItem>
+                <!-- 並びは列の既定の並び（フルパスは列がないので最後）。すでに昇順なら降順に並べる（Playlist.Sort）。 -->
                 <MenuItem Header="並べ替え(_S)">
-                    <MenuItem Header="ファイル名(_F)" Tag="FileName" Click="OnSortClick" />
+                    <MenuItem Header="曲順（#）(_O)" Tag="Order" Click="OnSortClick" />
+                    <MenuItem Header="トラック番号(_N)" Tag="TrackNumber" Click="OnSortClick" />
                     <MenuItem Header="タイトル(_T)" Tag="Title" Click="OnSortClick" />
                     <MenuItem Header="アーティスト(_A)" Tag="Artist" Click="OnSortClick" />
                     <MenuItem Header="アルバムとトラック番号(_L)" Tag="Album" Click="OnSortClick" />
+                    <MenuItem Header="アルバムアーティスト(_B)" Tag="AlbumArtist" Click="OnSortClick" />
+                    <MenuItem Header="時間(_D)" Tag="Duration" Click="OnSortClick" />
+                    <MenuItem Header="ファイル名(_F)" Tag="FileName" Click="OnSortClick" />
                     <MenuItem Header="フルパス(_P)" Tag="Path" Click="OnSortClick" />
-                    <MenuItem Header="曲順（#）(_O)" Tag="Order" Click="OnSortClick" />
                 </MenuItem>
                 <MenuItem Header="プレイリストをシャッフル(_H)" IsEnabled="{Binding HasItems}" Click="OnShuffleClick" />
                 <MenuItem Header="現在の曲順でリナンバリング(_N)" IsEnabled="{Binding HasItems}" Click="OnRenumberClick" />
@@ -185,7 +189,7 @@
                 <MenuItem Header="プレイリストからすべて削除(_C)" IsEnabled="{Binding HasItems}" Click="OnClearClick" />
             </MenuItem>
             <!-- キーは OnPreviewKeyDown で受ける。ここの表記は案内のためのもの。 -->
-            <MenuItem Header="再生(_P)">
+            <MenuItem x:Name="PlayMenu" Header="再生(_P)">
                 <MenuItem Header="再生 / 一時停止(_P)" InputGesture="Space" IsEnabled="{Binding CanPlayPause}" Click="OnPlayPauseClick" />
                 <MenuItem Header="停止(_S)" InputGesture="Ctrl+Space" IsEnabled="{Binding HasTrack}" Click="OnStopClick" />
                 <Separator />
@@ -207,7 +211,7 @@
                 <MenuItem Header="音量を下げる(_D)" InputGesture="Ctrl+Down" Click="OnVolumeDownClick" />
                 <MenuItem Header="ミュート(_M)" InputGesture="M" ToggleType="CheckBox" IsChecked="{Binding IsMuted, Mode=OneWay}" Click="OnMuteClick" />
             </MenuItem>
-            <MenuItem Header="表示(_V)">
+            <MenuItem x:Name="ViewMenu" Header="表示(_V)">
                 <!-- チェックの切り替えはクリックで行う。IsChecked を双方向にバインドしても、メニューでの操作は設定に書き戻されなかった。 -->
                 <MenuItem Header="ミニモード(_M)"
                           InputGesture="Ctrl+M"
@@ -219,6 +223,20 @@
                           ToggleType="CheckBox"
                           IsChecked="{Binding AlwaysOnTop, Mode=OneWay}"
                           Click="OnAlwaysOnTopClick" />
+                <Separator />
+                <!--
+                  設定画面の配色の選択肢と同じ。Tag は AppTheme の値。今の配色の印は開くたびに合わせる（OnThemeMenuOpened）。
+                  名前が英語なので、文字キーは付けない。
+                -->
+                <MenuItem Header="配色(_C)" SubmenuOpened="OnThemeMenuOpened">
+                    <MenuItem Header="Chiyomaru: System（既定）" Tag="0" ToggleType="Radio" Click="OnThemeMenuClick" />
+                    <MenuItem Header="Chiyomaru: Light" Tag="1" ToggleType="Radio" Click="OnThemeMenuClick" />
+                    <MenuItem Header="Chiyomaru: Dark" Tag="2" ToggleType="Radio" Click="OnThemeMenuClick" />
+                    <Separator />
+                    <MenuItem Header="Windows: System" Tag="3" ToggleType="Radio" Click="OnThemeMenuClick" />
+                    <MenuItem Header="Windows: Light" Tag="4" ToggleType="Radio" Click="OnThemeMenuClick" />
+                    <MenuItem Header="Windows: Dark" Tag="5" ToggleType="Radio" Click="OnThemeMenuClick" />
+                </MenuItem>
             </MenuItem>
             <!-- 中身は開くたびに、その時点でつながっているデバイスから作る。 -->
             <MenuItem x:Name="OutputMenu" Header="出力(_O)" SubmenuOpened="OnOutputMenuOpened">
@@ -226,21 +244,17 @@
             </MenuItem>
         </Menu>
 
-        <!-- ミニモードではウィンドウの枠がないので、ここをつかんで動かし、右クリックのメニューで元に戻す・閉じる。 -->
+        <!--
+          ミニモードではウィンドウの枠がないので、ここをつかんで動かす。
+          右クリックのメニューは、メニューバーから「編集」を除いた写しと「閉じる」（OnHeaderMenuOpening）。
+          ミニモードでは一覧が見えないので、選んだ曲を対象にする「編集」は入れない。
+        -->
         <Border x:Name="HeaderPanel"
                 DockPanel.Dock="Top"
                 Background="Transparent"
                 PointerPressed="OnHeaderPointerPressed">
             <Border.ContextMenu>
-                <ContextMenu>
-                    <MenuItem Header="ミニモード"
-                              ToggleType="CheckBox"
-                              IsChecked="{Binding MiniMode, Mode=OneWay}"
-                              Click="OnMiniModeClick" />
-                    <MenuItem Header="常に手前に表示"
-                              ToggleType="CheckBox"
-                              IsChecked="{Binding AlwaysOnTop, Mode=OneWay}"
-                              Click="OnAlwaysOnTopClick" />
+                <ContextMenu Opening="OnHeaderMenuOpening">
                     <Separator />
                     <MenuItem Header="閉じる" Click="OnExitClick" />
                 </ContextMenu>
@@ -464,12 +478,15 @@
                         <MenuItem Header="最後尾へ" Tag="Bottom" Click="OnMoveClick" />
                     </MenuItem>
                     <MenuItem Header="並べ替え" IsEnabled="{Binding HasItems}">
-                        <MenuItem Header="ファイル名" Tag="FileName" Click="OnSortClick" />
+                        <MenuItem Header="曲順（#）" Tag="Order" Click="OnSortClick" />
+                        <MenuItem Header="トラック番号" Tag="TrackNumber" Click="OnSortClick" />
                         <MenuItem Header="タイトル" Tag="Title" Click="OnSortClick" />
                         <MenuItem Header="アーティスト" Tag="Artist" Click="OnSortClick" />
                         <MenuItem Header="アルバムとトラック番号" Tag="Album" Click="OnSortClick" />
+                        <MenuItem Header="アルバムアーティスト" Tag="AlbumArtist" Click="OnSortClick" />
+                        <MenuItem Header="時間" Tag="Duration" Click="OnSortClick" />
+                        <MenuItem Header="ファイル名" Tag="FileName" Click="OnSortClick" />
                         <MenuItem Header="フルパス" Tag="Path" Click="OnSortClick" />
-                        <MenuItem Header="曲順（#）" Tag="Order" Click="OnSortClick" />
                     </MenuItem>
                     <MenuItem Header="プレイリストをシャッフル" IsEnabled="{Binding HasItems}" Click="OnShuffleClick" />
                     <MenuItem Header="現在の曲順でリナンバリング" IsEnabled="{Binding HasItems}" Click="OnRenumberClick" />

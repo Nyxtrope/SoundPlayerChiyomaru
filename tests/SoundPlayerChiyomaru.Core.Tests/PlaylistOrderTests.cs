@@ -42,8 +42,9 @@ public class PlaylistOrderTests : TempDirectoryTest
         playlist.Add(["e"]);
         Assert.Equal("4,1,3,5", Orders);
 
+        // すでにパスの昇順に並んでいるので、降順になる。
         playlist.Sort(PlaylistSortKey.Path);
-        Assert.Equal("b,c,d,e", Paths);
+        Assert.Equal("e,d,c,b", Paths);
         playlist.Sort(PlaylistSortKey.Order);
         Assert.Equal("c,d,b,e", Paths);
         Assert.Equal("1,3,4,5", Orders);
