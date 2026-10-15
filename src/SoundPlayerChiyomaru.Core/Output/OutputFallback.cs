@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using NAudio.CoreAudioApi.Interfaces;
+using SoundPlayerChiyomaru.Core.Localization;
 
 namespace SoundPlayerChiyomaru.Core.Output;
 
@@ -23,7 +24,9 @@ public static class OutputFallback
 
         foreach (OutputAttempt attempt in attempts)
         {
-            string? notice = failures.Count == 0 ? null : $"{string.Concat(failures)}{attempt.FallbackLabel}。";
+            string? notice = failures.Count == 0
+                ? null
+                : $"{string.Concat(failures)}{attempt.FallbackLabel}{UiLanguage.Text("。", ".")}";
             try
             {
                 return attempt.Create(notice);
@@ -31,13 +34,16 @@ public static class OutputFallback
             catch (Exception ex)
             {
                 // デバイスや形式に起因する失敗は種類が多い。どの失敗でも、次の候補を試す以外にできることがない。
-                failures.Add($"{attempt.FailureLabel}（{DescribeFailure(ex)}）。");
+                string reason = DescribeFailure(ex);
+                failures.Add(UiLanguage.Text($"{attempt.FailureLabel}（{reason}）。", $"{attempt.FailureLabel} ({reason}). "));
                 last = ex;
             }
         }
 
         throw new InvalidOperationException(
-            failures.Count == 0 ? "使える出力デバイスがありません。" : string.Concat(failures),
+            failures.Count == 0
+                ? UiLanguage.Text("使える出力デバイスがありません。", "No output device is available.")
+                : string.Concat(failures).TrimEnd(),
             last);
     }
 
@@ -53,14 +59,16 @@ public static class OutputFallback
                 switch (com.HResult)
                 {
                     case AudioClientErrorCode.UnsupportedFormat:
-                        return "デバイスがこの形式を受け付けません";
+                        return UiLanguage.Text("デバイスがこの形式を受け付けません", "the device does not accept this format");
                     case AudioClientErrorCode.DeviceInUse:
-                        return "他のアプリがデバイスを使用中です";
+                        return UiLanguage.Text("他のアプリがデバイスを使用中です", "another app is using the device");
                     case AudioClientErrorCode.ExclusiveModeNotAllowed:
-                        return "デバイスの設定で排他モードが許可されていません";
+                        return UiLanguage.Text(
+                            "デバイスの設定で排他モードが許可されていません",
+                            "exclusive mode is not allowed in the device settings");
                     case AudioClientErrorCode.DeviceInvalidated:
                     case AudioClientErrorCode.ResourcesInvalidated:
-                        return "デバイスが使えなくなりました";
+                        return UiLanguage.Text("デバイスが使えなくなりました", "the device is no longer available");
                 }
             }
         }

@@ -21,6 +21,9 @@ static class Program
     /// <summary>このプロセスが最初のインスタンスである印。単独で動かしている場合（計測用の起動など）は null。</summary>
     public static SingleInstance? Instance { get; private set; }
 
+    /// <summary>終了した後に、このアプリをもう一度起動するか（設定画面の「今すぐ再起動」）。</summary>
+    public static bool RestartRequested { get; set; }
+
     [STAThread]
     static void Main(string[] args)
     {
@@ -40,6 +43,20 @@ static class Program
         finally
         {
             Instance?.Dispose();
+        }
+
+        // 設定を保存し、印を手放した後に起動する。先に起動すると、新しいプロセスは起動済みのこちらへ
+        // 「ファイルなし」を渡して終わってしまう（このプロセスも終了するので、何も残らない）。
+        if (RestartRequested && Environment.ProcessPath is { } path)
+        {
+            try
+            {
+                Process.Start(new ProcessStartInfo(path) { UseShellExecute = false });
+            }
+            catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or InvalidOperationException)
+            {
+                // 画面はもう閉じているので知らせる場所がない。利用者が起動し直せば同じ状態に戻る。
+            }
         }
     }
 

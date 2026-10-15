@@ -5,6 +5,7 @@ using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using NAudio.Wave;
 using SoundPlayerChiyomaru.Core.Instance;
+using SoundPlayerChiyomaru.Core.Localization;
 using SoundPlayerChiyomaru.Core.Output;
 using SoundPlayerChiyomaru.Core.Playback;
 using SoundPlayerChiyomaru.Core.Playlists;
@@ -20,7 +21,7 @@ public sealed record OutputDeviceChoice(string? Id, string Name, bool IsSelected
 public sealed class MainWindowViewModel : INotifyPropertyChanged, IDisposable
 {
     private const string AppName = "S:P Chiyomaru";
-    private const string EmptyTitle = "ファイルを開くか、ここにドロップしてください";
+    private static string EmptyTitle => UiLanguage.Text("ファイルを開くか、ここにドロップしてください", "Open a file or drop it here");
 
     /// <summary>このアプリのバージョン（「0.1.0」の形）。プロジェクトファイルの Version から来る。</summary>
     public static string AppVersion { get; } =
@@ -56,7 +57,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IDisposable
 
     /// <summary>フォルダの中を探すのにこれより長くかかったら、探している最中であることを出す（すぐ終わるときに表示がちらつかないように）。</summary>
     private static readonly TimeSpan SearchingNoticeDelay = TimeSpan.FromMilliseconds(500);
-    private const string SearchingNotice = "フォルダの中の曲を探しています…";
+    private static string SearchingNotice => UiLanguage.Text("フォルダの中の曲を探しています…", "Looking for tracks in the folder…");
 
     private PlayerState state;
     private string? noticeText;
@@ -149,7 +150,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IDisposable
     public PlaylistItem? CurrentItem => player.Current;
 
     /// <summary>再生モードの表示名。並びは <see cref="PlayMode"/> の値の順。</summary>
-    public IReadOnlyList<string> ModeNames { get; } = ["通常", "1曲リピート", "全曲リピート", "ランダム", "1ショット"];
+    public IReadOnlyList<string> ModeNames { get; } = Strings.ModeNames;
 
     public int ModeIndex
     {
@@ -165,7 +166,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
-    public string ModeToolTip => $"再生モード: {ModeNames[(int)player.Mode]}";
+    public string ModeToolTip => UiLanguage.Text($"再生モード: {ModeNames[(int)player.Mode]}", $"Play mode: {ModeNames[(int)player.Mode]}");
 
     /// <summary>画面の配色。切り替えの適用は画面の側で行う。</summary>
     public AppTheme Theme
@@ -176,6 +177,20 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IDisposable
             if (settings.Theme != value && Enum.IsDefined(value))
             {
                 settings.Theme = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>画面の言語の設定。変更は再起動で反映する（今の画面の言語は <see cref="UiLanguage.Current"/>）。</summary>
+    public AppLanguage Language
+    {
+        get => Enum.IsDefined(settings.Language) ? settings.Language : AppLanguage.System;
+        set
+        {
+            if (settings.Language != value && Enum.IsDefined(value))
+            {
+                settings.Language = value;
                 OnPropertyChanged();
             }
         }
@@ -325,7 +340,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
-    public string PlayPauseText => isPlaying ? "一時停止" : "再生";
+    public string PlayPauseText => isPlaying ? UiLanguage.Text("一時停止", "Pause") : UiLanguage.Text("再生", "Play");
 
     public bool CanUndo
     {
@@ -365,7 +380,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IDisposable
             OnPropertyChanged(nameof(TimeText));
             if (!syncingFromPlayback)
             {
-                Run(() => playback.Seek(TimeSpan.FromSeconds(value)), "シークできません");
+                Run(() => playback.Seek(TimeSpan.FromSeconds(value)), UiLanguage.Text("シークできません", "Cannot seek"));
             }
         }
     }
@@ -431,7 +446,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IDisposable
             settings.ExclusiveMode = value;
             deviceSelection.PreferExclusive = value;
             OnPropertyChanged();
-            Run(playback.RestartOutput, "出力を切り替えられません");
+            Run(playback.RestartOutput, UiLanguage.Text("出力を切り替えられません", "Cannot change the output"));
         }
     }
 
@@ -452,7 +467,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IDisposable
             settings.BufferMilliseconds = value;
             deviceSelection.BufferMilliseconds = value;
             OnPropertyChanged();
-            Run(playback.RestartOutput, "出力を切り替えられません");
+            Run(playback.RestartOutput, UiLanguage.Text("出力を切り替えられません", "Cannot change the output"));
         }
     }
 
@@ -477,7 +492,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IDisposable
             // 共有モードには効かない設定なので、共有モードを選んでいる間は出力を作り直さない（作り直すと音が一瞬途切れる）。
             if (settings.ExclusiveMode)
             {
-                Run(playback.RestartOutput, "出力を切り替えられません");
+                Run(playback.RestartOutput, UiLanguage.Text("出力を切り替えられません", "Cannot change the output"));
             }
         }
     }
@@ -512,7 +527,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IDisposable
 
             settings.ReplayGain = value;
             OnPropertyChanged();
-            Run(() => playback.ReplayGainMode = value, "ReplayGain を切り替えられません");
+            Run(() => playback.ReplayGainMode = value, UiLanguage.Text("ReplayGain を切り替えられません", "Cannot change ReplayGain"));
             UpdateOutputText();
         }
     }
@@ -720,12 +735,12 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IDisposable
 
             if (entries.Count == 0)
             {
-                ErrorText = "再生できるファイルがありません";
+                ErrorText = UiLanguage.Text("再生できるファイルがありません", "No playable files");
                 return;
             }
             playlist.Open(entries, file);
             player.Play(playlist.Items[0]);
-        }, "開けません"));
+        }, UiLanguage.Text("開けません", "Cannot open")));
     }
 
     /// <summary>
@@ -764,9 +779,12 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IDisposable
                 }
                 if (wanted.Count < expanded.Count)
                 {
-                    NoticeText = $"重複する {expanded.Count - wanted.Count} 曲は追加しませんでした。";
+                    int skipped = expanded.Count - wanted.Count;
+                    NoticeText = UiLanguage.Text(
+                        $"重複する {skipped} 曲は追加しませんでした。",
+                        skipped == 1 ? "1 duplicate track was not added." : $"{skipped} duplicate tracks were not added.");
                 }
-            }, "追加できません");
+            }, UiLanguage.Text("追加できません", "Cannot add"));
             onAdded(added, first);
         });
 
@@ -815,7 +833,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IDisposable
             {
                 NoticeText = null;
             }
-            ErrorText = $"開けません: {ex.Message}";
+            ErrorText = UiLanguage.Text($"開けません: {ex.Message}", $"Cannot open: {ex.Message}");
         }
     }
 
@@ -917,11 +935,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IDisposable
         string? preferred = deviceSelection.PreferredDeviceId;
         IReadOnlyList<AudioDeviceInfo> devices = deviceService.GetDevices();
 
-        var choices = new List<OutputDeviceChoice> { new(null, "既定のデバイス", preferred is null) };
+        var choices = new List<OutputDeviceChoice> { new(null, Strings.DefaultDevice, preferred is null) };
         choices.AddRange(devices.Select(device => new OutputDeviceChoice(device.Id, device.Name, device.Id == preferred)));
         if (preferred is not null && devices.All(device => device.Id != preferred))
         {
-            choices.Add(new OutputDeviceChoice(preferred, "選択中のデバイス（接続されていません）", true));
+            choices.Add(new OutputDeviceChoice(preferred, UiLanguage.Text("選択中のデバイス（接続されていません）", "Selected device (not connected)"), true));
         }
         return choices;
     }
@@ -934,7 +952,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IDisposable
         {
             settings.OutputDeviceId = deviceId;
             deviceSelection.PreferredDeviceId = deviceId;
-        }, "出力デバイスを切り替えられません");
+        }, UiLanguage.Text("出力デバイスを切り替えられません", "Cannot change the output device"));
     }
 
     /// <summary>このアプリを、曲とプレイリストのファイルを開くアプリの候補として Windows に登録する。</summary>
@@ -945,11 +963,13 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IDisposable
         {
             fileAssociation.Register();
             FileAssociationRegistrar.NotifyShell();
-            return "関連付けを登録しました。既定のアプリにするには、Windows の設定の「既定のアプリ」でこのアプリを選んでください。";
+            return UiLanguage.Text(
+                "関連付けを登録しました。既定のアプリにするには、Windows の設定の「既定のアプリ」でこのアプリを選んでください。",
+                "Registered. To make this the default app, choose it in Default apps in Windows Settings.");
         }
         catch (Exception ex)
         {
-            return $"関連付けを登録できません: {ex.Message}";
+            return UiLanguage.Text($"関連付けを登録できません: {ex.Message}", $"Cannot register: {ex.Message}");
         }
     }
 
@@ -960,11 +980,11 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IDisposable
         {
             fileAssociation.Unregister();
             FileAssociationRegistrar.NotifyShell();
-            return "関連付けを解除しました。";
+            return UiLanguage.Text("関連付けを解除しました。", "Unregistered.");
         }
         catch (Exception ex)
         {
-            return $"関連付けを解除できません: {ex.Message}";
+            return UiLanguage.Text($"関連付けを解除できません: {ex.Message}", $"Cannot unregister: {ex.Message}");
         }
     }
 
@@ -993,9 +1013,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IDisposable
     /// <summary>今の曲が終わったら、指定した曲から続ける。</summary>
     public void PlayItemNext(PlaylistItem item) => Run(() => player.PlayAfterCurrent(item), null);
 
-    public void TogglePlayPause() => Run(player.PlayPause, "再生を開始できません");
+    public void TogglePlayPause() => Run(player.PlayPause, UiLanguage.Text("再生を開始できません", "Cannot start playback"));
 
-    public void Stop() => Run(player.Stop, "停止できません");
+    public void Stop() => Run(player.Stop, UiLanguage.Text("停止できません", "Cannot stop"));
 
     public void Next() => Run(player.Next, null);
 
@@ -1072,7 +1092,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IDisposable
             PlaylistFile.Write(path, playlist.Items, settings.SaveRelativePaths);
             playlist.FilePath = Path.GetFullPath(path);
             UpdateStatus();
-        }, "保存できません");
+        }, UiLanguage.Text("保存できません", "Cannot save"));
     }
 
     /// <summary>前回終了時の設定を反映する。</summary>
@@ -1108,7 +1128,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IDisposable
     }
 
     /// <summary>設定と作業中プレイリストを保存する。終了時と、編集が落ち着いたときに呼ばれる。</summary>
-    public void SaveSession()
+    /// <returns>保存できたか。できなければ <see cref="ErrorText"/> に理由が入る。</returns>
+    public bool SaveSession()
     {
         autoSaveTimer.Stop();
         // ミュートの間は出力の音量が 0 になっている。保存するのは音量の設定のほう。
@@ -1121,11 +1142,13 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IDisposable
         {
             store.SaveWorkingPlaylist(playlist.Items);
             store.Save(settings);
+            return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             // 実行ファイルの場所に書き込めない（読み取り専用の場所に置かれている）。再生は続けられるので知らせるだけにする。
-            ErrorText = $"設定を保存できません: {ex.Message}";
+            ErrorText = UiLanguage.Text($"設定を保存できません: {ex.Message}", $"Cannot save settings: {ex.Message}");
+            return false;
         }
     }
 
@@ -1171,7 +1194,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IDisposable
         if (playback.IsWaitingForDevice && ErrorText is null)
         {
             deviceErrorShown = true;
-            ErrorText = "出力デバイスを使えません。使えるようになると再生を再開します。";
+            ErrorText = UiLanguage.Text(
+                "出力デバイスを使えません。使えるようになると再生を再開します。",
+                "The output device is unavailable. Playback resumes when it becomes available.");
         }
     }
 
@@ -1205,8 +1230,10 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IDisposable
     {
         deviceErrorShown = playback.IsWaitingForDevice;
         ErrorText = deviceErrorShown
-            ? $"出力デバイスが使えなくなりました。使えるようになると再生を再開します: {e.Exception.Message}"
-            : $"再生が中断されました: {e.Exception.Message}";
+            ? UiLanguage.Text(
+                $"出力デバイスが使えなくなりました。使えるようになると再生を再開します: {e.Exception.Message}",
+                $"The output device became unavailable. Playback resumes when it becomes available: {e.Exception.Message}")
+            : UiLanguage.Text($"再生が中断されました: {e.Exception.Message}", $"Playback stopped: {e.Exception.Message}");
     }
 
     private void OnOutputChanged(object? sender, EventArgs e)
@@ -1317,7 +1344,8 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IDisposable
 
     private void UpdateStatus()
     {
-        string status = $"{playlist.Count} 曲";
+        int count = playlist.Count;
+        string status = UiLanguage.Text($"{count} 曲", count == 1 ? "1 track" : $"{count} tracks");
 
         // タグを読んでいる途中は、読めた分までの合計になる（読み進むにつれて増える）。
         TimeSpan total = playlist.GetTotalDuration();
@@ -1371,7 +1399,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IDisposable
         {
             text += playback.ReplayGainDb is { } gain
                 ? string.Create(CultureInfo.InvariantCulture, $"  ·  ReplayGain {gain:+0.0;-0.0;0.0} dB")
-                : "  ·  ReplayGain タグなし";
+                : UiLanguage.Text("  ·  ReplayGain タグなし", "  ·  no ReplayGain tag");
         }
         FormatText = text;
     }

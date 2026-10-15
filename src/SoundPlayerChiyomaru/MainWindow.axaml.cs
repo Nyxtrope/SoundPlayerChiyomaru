@@ -9,6 +9,7 @@ using Avalonia.Platform.Storage;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using SoundPlayerChiyomaru.Core.Instance;
+using SoundPlayerChiyomaru.Core.Localization;
 using SoundPlayerChiyomaru.Core.Playback;
 using SoundPlayerChiyomaru.Core.Playlists;
 using SoundPlayerChiyomaru.Core.Settings;
@@ -353,7 +354,7 @@ public partial class MainWindow : Window
 
         // 処理経路・出力の形式・デバイスは画面に出していないので、ここで確かめられるようにする。
         IReadOnlyList<string> status = viewModel.DescribeOutput();
-        foreach (string line in status.Count > 0 ? status : ["出力していません"])
+        foreach (string line in status.Count > 0 ? status : [UiLanguage.Text("出力していません", "Not outputting")])
         {
             OutputMenu.Items.Add(new MenuItem { Header = line.Replace("_", "__"), IsEnabled = false });
         }
@@ -366,7 +367,7 @@ public partial class MainWindow : Window
         // 排他モードの間は他のアプリの音が鳴らなくなるので、選ぶ場所に注記しておく（SPEC 3.2）。
         var exclusive = new MenuItem
         {
-            Header = "排他モード（他のアプリの音は鳴らなくなります）",
+            Header = UiLanguage.Text("排他モード（他のアプリの音は鳴らなくなります）", "Exclusive mode (other apps cannot play sound)"),
             ToggleType = MenuItemToggleType.CheckBox,
             IsChecked = viewModel.ExclusiveMode,
         };
@@ -376,9 +377,9 @@ public partial class MainWindow : Window
         var replayGain = new MenuItem { Header = "ReplayGain" };
         foreach ((string header, ReplayGainMode mode) in new[]
         {
-            ("オフ", ReplayGainMode.Off),
-            ("トラック（曲ごとに揃える）", ReplayGainMode.Track),
-            ("アルバム（アルバムの中の音量差を保つ）", ReplayGainMode.Album),
+            (UiLanguage.Text("オフ", "Off"), ReplayGainMode.Off),
+            (Strings.ReplayGainTrack, ReplayGainMode.Track),
+            (Strings.ReplayGainAlbum, ReplayGainMode.Album),
         })
         {
             var item = new MenuItem
@@ -691,7 +692,7 @@ public partial class MainWindow : Window
 
         var copy = new MenuItem
         {
-            Header = item.Header is string header ? WithoutAccessKey(header) : item.Header,
+            Header = item.Header is string header ? AccessKeys.Remove(header) : item.Header,
             InputGesture = item.InputGesture,
             ToggleType = item.ToggleType,
             IsChecked = item.IsChecked,
@@ -732,18 +733,6 @@ public partial class MainWindow : Window
             }
         };
         return copy;
-    }
-
-    /// <summary>
-    /// 見出しから文字キーの表記（「(F)」の部分）を取り除く。右クリックのメニューでは文字キーで選べないため。
-    /// 名前の中の「_」を表す「__」（デバイス名など）は、そのまま残す。
-    /// </summary>
-    private static string WithoutAccessKey(string header)
-    {
-        int start = header.IndexOf("(_", StringComparison.Ordinal);
-        return start >= 0 && start + 3 < header.Length && header[start + 2] != '_' && header[start + 3] == ')'
-            ? header.Remove(start, 4)
-            : header;
     }
 
     /// <summary>「再生」メニューの再生モードを開いた。今のモードに印を付ける（ボタンから変えた場合もあるので、開くたびに合わせる）。</summary>
@@ -1080,7 +1069,7 @@ public partial class MainWindow : Window
 
     private async void OnOpenClick(object? sender, RoutedEventArgs e)
     {
-        if (await PickFiles("開く") is { Count: > 0 } paths)
+        if (await PickFiles(AccessKeys.Remove(Strings.Open).TrimEnd('.')) is { Count: > 0 } paths)
         {
             viewModel.OpenPaths(paths);
         }
@@ -1088,7 +1077,7 @@ public partial class MainWindow : Window
 
     private async void OnAddFilesClick(object? sender, RoutedEventArgs e)
     {
-        if (await PickFiles("ファイルを追加") is { Count: > 0 } paths)
+        if (await PickFiles(AccessKeys.Remove(Strings.AddFiles).TrimEnd('.')) is { Count: > 0 } paths)
         {
             viewModel.AddPaths(paths, onAdded: Select);
         }
@@ -1099,7 +1088,7 @@ public partial class MainWindow : Window
         try
         {
             IReadOnlyList<IStorageFolder> folders = await StorageProvider.OpenFolderPickerAsync(
-                new FolderPickerOpenOptions { Title = "フォルダを追加", AllowMultiple = true });
+                new FolderPickerOpenOptions { Title = AccessKeys.Remove(Strings.AddFolder).TrimEnd('.'), AllowMultiple = true });
             string[] paths = LocalPaths(folders);
             if (paths.Length > 0)
             {
@@ -1108,7 +1097,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            viewModel.ShowError($"フォルダを選べません: {ex.Message}");
+            viewModel.ShowError(UiLanguage.Text($"フォルダを選べません: {ex.Message}", $"Cannot choose a folder: {ex.Message}"));
         }
     }
 
@@ -1260,7 +1249,7 @@ public partial class MainWindow : Window
                 AllowMultiple = true,
                 FileTypeFilter =
                 [
-                    new FilePickerFileType("音声ファイルとプレイリスト")
+                    new FilePickerFileType(UiLanguage.Text("音声ファイルとプレイリスト", "Audio files and playlists"))
                     {
                         Patterns = viewModel.AudioExtensions
                             .Concat(PlaylistFile.Extensions)
@@ -1274,7 +1263,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            viewModel.ShowError($"ファイルを選べません: {ex.Message}");
+            viewModel.ShowError(UiLanguage.Text($"ファイルを選べません: {ex.Message}", $"Cannot choose files: {ex.Message}"));
             return null;
         }
     }
@@ -1285,10 +1274,10 @@ public partial class MainWindow : Window
         {
             IStorageFile? file = await StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
             {
-                Title = "プレイリストに名前を付けて保存",
+                Title = AccessKeys.Remove(Strings.SavePlaylistAs).TrimEnd('.'),
                 DefaultExtension = "m3u8",
                 SuggestedFileName = "playlist",
-                FileTypeChoices = [new FilePickerFileType("M3U8 プレイリスト") { Patterns = ["*.m3u8"] }],
+                FileTypeChoices = [new FilePickerFileType(UiLanguage.Text("M3U8 プレイリスト", "M3U8 playlist")) { Patterns = ["*.m3u8"] }],
             });
             if (file?.TryGetLocalPath() is { } path)
             {
@@ -1297,7 +1286,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            viewModel.ShowError($"保存先を選べません: {ex.Message}");
+            viewModel.ShowError(UiLanguage.Text($"保存先を選べません: {ex.Message}", $"Cannot choose where to save: {ex.Message}"));
         }
     }
 
@@ -1418,7 +1407,7 @@ public partial class MainWindow : Window
         }
         catch (Exception ex)
         {
-            viewModel.ShowError($"並べ替えできません: {ex.Message}");
+            viewModel.ShowError(UiLanguage.Text($"並べ替えできません: {ex.Message}", $"Cannot reorder: {ex.Message}"));
         }
         finally
         {

@@ -140,85 +140,85 @@
 
     <DockPanel>
         <Menu x:Name="MainMenu" DockPanel.Dock="Top" IsVisible="{Binding !MiniMode}">
-            <MenuItem x:Name="FileMenu" Header="ファイル(_F)">
-                <MenuItem Header="開く(_O)..." InputGesture="Ctrl+O" Click="OnOpenClick" />
-                <MenuItem Header="ファイルを追加(_A)..." Click="OnAddFilesClick" />
-                <MenuItem Header="フォルダを追加(_D)..." Click="OnAddFolderClick" />
+            <MenuItem x:Name="FileMenu" Header="{x:Static local:Strings.FileMenu}">
+                <MenuItem Header="{x:Static local:Strings.Open}" InputGesture="Ctrl+O" Click="OnOpenClick" />
+                <MenuItem Header="{x:Static local:Strings.AddFiles}" Click="OnAddFilesClick" />
+                <MenuItem Header="{x:Static local:Strings.AddFolder}" Click="OnAddFolderClick" />
                 <Separator />
-                <MenuItem Header="プレイリストを上書き保存(_S)" InputGesture="Ctrl+S" Click="OnSaveClick" />
-                <MenuItem Header="プレイリストに名前を付けて保存(_N)..." InputGesture="Ctrl+Shift+S" Click="OnSaveAsClick" />
+                <MenuItem Header="{x:Static local:Strings.SavePlaylist}" InputGesture="Ctrl+S" Click="OnSaveClick" />
+                <MenuItem Header="{x:Static local:Strings.SavePlaylistAs}" InputGesture="Ctrl+Shift+S" Click="OnSaveAsClick" />
                 <Separator />
                 <!-- 出力デバイス・排他モード・ReplayGain 以外の設定は、設定画面に置く（SettingsWindow）。 -->
                 <!-- キーの表示は「Ctrl+OemComma」になるので、コードで「Ctrl+,」に書き換える（MainWindow のコンストラクター）。 -->
-                <MenuItem x:Name="SettingsMenuItem" Header="設定(_T)..." InputGesture="Ctrl+OemComma" Click="OnSettingsClick" />
+                <MenuItem x:Name="SettingsMenuItem" Header="{x:Static local:Strings.Settings}" InputGesture="Ctrl+OemComma" Click="OnSettingsClick" />
                 <Separator />
-                <MenuItem Header="終了(_X)" Click="OnExitClick" />
+                <MenuItem Header="{x:Static local:Strings.Exit}" Click="OnExitClick" />
             </MenuItem>
-            <MenuItem x:Name="EditMenu" Header="編集(_E)" SubmenuOpened="OnEditMenuOpened">
-                <MenuItem Header="元に戻す(_U)" InputGesture="Ctrl+Z" IsEnabled="{Binding CanUndo}" Click="OnUndoClick" />
-                <MenuItem Header="やり直し(_R)" InputGesture="Ctrl+Y" IsEnabled="{Binding CanRedo}" Click="OnRedoClick" />
+            <MenuItem x:Name="EditMenu" Header="{x:Static local:Strings.EditMenu}" SubmenuOpened="OnEditMenuOpened">
+                <MenuItem Header="{x:Static local:Strings.Undo}" InputGesture="Ctrl+Z" IsEnabled="{Binding CanUndo}" Click="OnUndoClick" />
+                <MenuItem Header="{x:Static local:Strings.Redo}" InputGesture="Ctrl+Y" IsEnabled="{Binding CanRedo}" Click="OnRedoClick" />
                 <Separator />
-                <MenuItem Header="すべて選択(_A)" InputGesture="Ctrl+A" Click="OnSelectAllClick" />
+                <MenuItem Header="{x:Static local:Strings.SelectAll}" InputGesture="Ctrl+A" Click="OnSelectAllClick" />
                 <Separator />
                 <!-- 選択中の曲を動かす。上へ・下へのキーは OnPreviewKeyDown で受ける。 -->
-                <MenuItem Header="移動(_M)" SubmenuOpened="OnMoveMenuOpened">
-                    <MenuItem Header="上へ(_U)" Tag="Up" InputGesture="Alt+Up" Click="OnMoveClick" />
-                    <MenuItem Header="下へ(_D)" Tag="Down" InputGesture="Alt+Down" Click="OnMoveClick" />
+                <MenuItem Header="{x:Static local:Strings.Move}" SubmenuOpened="OnMoveMenuOpened">
+                    <MenuItem Header="{x:Static local:Strings.MoveUp}" Tag="Up" InputGesture="Alt+Up" Click="OnMoveClick" />
+                    <MenuItem Header="{x:Static local:Strings.MoveDown}" Tag="Down" InputGesture="Alt+Down" Click="OnMoveClick" />
                     <Separator />
-                    <MenuItem Header="再生中の曲の次へ(_N)" Tag="AfterCurrent" Click="OnMoveClick" />
-                    <MenuItem Header="先頭へ(_T)" Tag="Top" Click="OnMoveClick" />
-                    <MenuItem Header="最後尾へ(_B)" Tag="Bottom" Click="OnMoveClick" />
+                    <MenuItem Header="{x:Static local:Strings.MoveAfterCurrent}" Tag="AfterCurrent" Click="OnMoveClick" />
+                    <MenuItem Header="{x:Static local:Strings.MoveToTop}" Tag="Top" Click="OnMoveClick" />
+                    <MenuItem Header="{x:Static local:Strings.MoveToBottom}" Tag="Bottom" Click="OnMoveClick" />
                 </MenuItem>
                 <!-- 並びは列の既定の並び（フルパスは列がないので最後）。すでに昇順なら降順に並べる（Playlist.Sort）。 -->
-                <MenuItem Header="並べ替え(_S)">
-                    <MenuItem Header="曲順（#）(_O)" Tag="Order" Click="OnSortClick" />
-                    <MenuItem Header="トラック番号(_N)" Tag="TrackNumber" Click="OnSortClick" />
-                    <MenuItem Header="タイトル(_T)" Tag="Title" Click="OnSortClick" />
-                    <MenuItem Header="アーティスト(_A)" Tag="Artist" Click="OnSortClick" />
-                    <MenuItem Header="アルバムとトラック番号(_L)" Tag="Album" Click="OnSortClick" />
-                    <MenuItem Header="アルバムアーティスト(_B)" Tag="AlbumArtist" Click="OnSortClick" />
-                    <MenuItem Header="時間(_D)" Tag="Duration" Click="OnSortClick" />
-                    <MenuItem Header="ファイル名(_F)" Tag="FileName" Click="OnSortClick" />
-                    <MenuItem Header="フルパス(_P)" Tag="Path" Click="OnSortClick" />
+                <MenuItem Header="{x:Static local:Strings.Sort}">
+                    <MenuItem Header="{x:Static local:Strings.SortByOrder}" Tag="Order" Click="OnSortClick" />
+                    <MenuItem Header="{x:Static local:Strings.SortByTrackNumber}" Tag="TrackNumber" Click="OnSortClick" />
+                    <MenuItem Header="{x:Static local:Strings.SortByTitle}" Tag="Title" Click="OnSortClick" />
+                    <MenuItem Header="{x:Static local:Strings.SortByArtist}" Tag="Artist" Click="OnSortClick" />
+                    <MenuItem Header="{x:Static local:Strings.SortByAlbum}" Tag="Album" Click="OnSortClick" />
+                    <MenuItem Header="{x:Static local:Strings.SortByAlbumArtist}" Tag="AlbumArtist" Click="OnSortClick" />
+                    <MenuItem Header="{x:Static local:Strings.SortByDuration}" Tag="Duration" Click="OnSortClick" />
+                    <MenuItem Header="{x:Static local:Strings.SortByFileName}" Tag="FileName" Click="OnSortClick" />
+                    <MenuItem Header="{x:Static local:Strings.SortByPath}" Tag="Path" Click="OnSortClick" />
                 </MenuItem>
-                <MenuItem Header="プレイリストをシャッフル(_H)" IsEnabled="{Binding HasItems}" Click="OnShuffleClick" />
-                <MenuItem Header="現在の曲順でリナンバリング(_N)" IsEnabled="{Binding HasItems}" Click="OnRenumberClick" />
+                <MenuItem Header="{x:Static local:Strings.Shuffle}" IsEnabled="{Binding HasItems}" Click="OnShuffleClick" />
+                <MenuItem Header="{x:Static local:Strings.Renumber}" IsEnabled="{Binding HasItems}" Click="OnRenumberClick" />
                 <Separator />
                 <!-- 「削除」だけでは、ファイルを消すように読める。 -->
-                <MenuItem x:Name="EditRemoveItem" Header="プレイリストから削除(_D)" InputGesture="Delete" Click="OnRemoveClick" />
-                <MenuItem Header="プレイリストからすべて削除(_C)" IsEnabled="{Binding HasItems}" Click="OnClearClick" />
+                <MenuItem x:Name="EditRemoveItem" Header="{x:Static local:Strings.Remove}" InputGesture="Delete" Click="OnRemoveClick" />
+                <MenuItem Header="{x:Static local:Strings.Clear}" IsEnabled="{Binding HasItems}" Click="OnClearClick" />
             </MenuItem>
             <!-- キーは OnPreviewKeyDown で受ける。ここの表記は案内のためのもの。 -->
-            <MenuItem x:Name="PlayMenu" Header="再生(_P)">
-                <MenuItem Header="再生 / 一時停止(_P)" InputGesture="Space" IsEnabled="{Binding CanPlayPause}" Click="OnPlayPauseClick" />
-                <MenuItem Header="停止(_S)" InputGesture="Ctrl+Space" IsEnabled="{Binding HasTrack}" Click="OnStopClick" />
+            <MenuItem x:Name="PlayMenu" Header="{x:Static local:Strings.PlayMenu}">
+                <MenuItem Header="{x:Static local:Strings.PlayPause}" InputGesture="Space" IsEnabled="{Binding CanPlayPause}" Click="OnPlayPauseClick" />
+                <MenuItem Header="{x:Static local:Strings.Stop}" InputGesture="Ctrl+Space" IsEnabled="{Binding HasTrack}" Click="OnStopClick" />
                 <Separator />
-                <MenuItem Header="前の曲(_B)" InputGesture="Ctrl+Left" IsEnabled="{Binding HasItems}" Click="OnPreviousClick" />
-                <MenuItem Header="次の曲(_N)" InputGesture="Ctrl+Right" IsEnabled="{Binding HasItems}" Click="OnNextClick" />
+                <MenuItem Header="{x:Static local:Strings.Previous}" InputGesture="Ctrl+Left" IsEnabled="{Binding HasItems}" Click="OnPreviousClick" />
+                <MenuItem Header="{x:Static local:Strings.Next}" InputGesture="Ctrl+Right" IsEnabled="{Binding HasItems}" Click="OnNextClick" />
                 <!-- 再生モードのボタンと同じ選択肢。Tag は PlayMode の値。名前は MainWindowViewModel.ModeNames と合わせること。 -->
-                <MenuItem Header="再生モード(_O)" SubmenuOpened="OnModeMenuOpened">
-                    <MenuItem Header="通常(_N)" Tag="0" ToggleType="Radio" Click="OnModeMenuClick" />
-                    <MenuItem Header="1曲リピート(_1)" Tag="1" ToggleType="Radio" Click="OnModeMenuClick" />
-                    <MenuItem Header="全曲リピート(_A)" Tag="2" ToggleType="Radio" Click="OnModeMenuClick" />
-                    <MenuItem Header="ランダム(_R)" Tag="3" ToggleType="Radio" Click="OnModeMenuClick" />
-                    <MenuItem Header="1ショット(_O)" Tag="4" ToggleType="Radio" Click="OnModeMenuClick" />
+                <MenuItem Header="{x:Static local:Strings.PlayModeMenu}" SubmenuOpened="OnModeMenuOpened">
+                    <MenuItem Header="{x:Static local:Strings.ModeNormal}" Tag="0" ToggleType="Radio" Click="OnModeMenuClick" />
+                    <MenuItem Header="{x:Static local:Strings.ModeRepeatOne}" Tag="1" ToggleType="Radio" Click="OnModeMenuClick" />
+                    <MenuItem Header="{x:Static local:Strings.ModeRepeatAll}" Tag="2" ToggleType="Radio" Click="OnModeMenuClick" />
+                    <MenuItem Header="{x:Static local:Strings.ModeRandom}" Tag="3" ToggleType="Radio" Click="OnModeMenuClick" />
+                    <MenuItem Header="{x:Static local:Strings.ModeOneShot}" Tag="4" ToggleType="Radio" Click="OnModeMenuClick" />
                 </MenuItem>
                 <Separator />
-                <MenuItem Header="5 秒進む(_F)" InputGesture="Right" IsEnabled="{Binding HasTrack}" Click="OnSeekForwardClick" />
-                <MenuItem Header="5 秒戻る(_R)" InputGesture="Left" IsEnabled="{Binding HasTrack}" Click="OnSeekBackClick" />
+                <MenuItem Header="{x:Static local:Strings.SeekForward}" InputGesture="Right" IsEnabled="{Binding HasTrack}" Click="OnSeekForwardClick" />
+                <MenuItem Header="{x:Static local:Strings.SeekBack}" InputGesture="Left" IsEnabled="{Binding HasTrack}" Click="OnSeekBackClick" />
                 <Separator />
-                <MenuItem Header="音量を上げる(_U)" InputGesture="Ctrl+Up" Click="OnVolumeUpClick" />
-                <MenuItem Header="音量を下げる(_D)" InputGesture="Ctrl+Down" Click="OnVolumeDownClick" />
-                <MenuItem Header="ミュート(_M)" InputGesture="M" ToggleType="CheckBox" IsChecked="{Binding IsMuted, Mode=OneWay}" Click="OnMuteClick" />
+                <MenuItem Header="{x:Static local:Strings.VolumeUp}" InputGesture="Ctrl+Up" Click="OnVolumeUpClick" />
+                <MenuItem Header="{x:Static local:Strings.VolumeDown}" InputGesture="Ctrl+Down" Click="OnVolumeDownClick" />
+                <MenuItem Header="{x:Static local:Strings.Mute}" InputGesture="M" ToggleType="CheckBox" IsChecked="{Binding IsMuted, Mode=OneWay}" Click="OnMuteClick" />
             </MenuItem>
-            <MenuItem x:Name="ViewMenu" Header="表示(_V)">
+            <MenuItem x:Name="ViewMenu" Header="{x:Static local:Strings.ViewMenu}">
                 <!-- チェックの切り替えはクリックで行う。IsChecked を双方向にバインドしても、メニューでの操作は設定に書き戻されなかった。 -->
-                <MenuItem Header="ミニモード(_M)"
+                <MenuItem Header="{x:Static local:Strings.MiniMode}"
                           InputGesture="Ctrl+M"
                           ToggleType="CheckBox"
                           IsChecked="{Binding MiniMode, Mode=OneWay}"
                           Click="OnMiniModeClick" />
-                <MenuItem Header="常に手前に表示(_T)"
+                <MenuItem Header="{x:Static local:Strings.AlwaysOnTop}"
                           InputGesture="Ctrl+T"
                           ToggleType="CheckBox"
                           IsChecked="{Binding AlwaysOnTop, Mode=OneWay}"
@@ -228,8 +228,8 @@
                   設定画面の配色の選択肢と同じ。Tag は AppTheme の値。今の配色の印は開くたびに合わせる（OnThemeMenuOpened）。
                   名前が英語なので、文字キーは付けない。
                 -->
-                <MenuItem Header="配色(_C)" SubmenuOpened="OnThemeMenuOpened">
-                    <MenuItem Header="Chiyomaru: System（既定）" Tag="0" ToggleType="Radio" Click="OnThemeMenuClick" />
+                <MenuItem Header="{x:Static local:Strings.ThemeMenu}" SubmenuOpened="OnThemeMenuOpened">
+                    <MenuItem Header="{x:Static local:Strings.ThemeChiyomaruSystem}" Tag="0" ToggleType="Radio" Click="OnThemeMenuClick" />
                     <MenuItem Header="Chiyomaru: Light" Tag="1" ToggleType="Radio" Click="OnThemeMenuClick" />
                     <MenuItem Header="Chiyomaru: Dark" Tag="2" ToggleType="Radio" Click="OnThemeMenuClick" />
                     <Separator />
@@ -239,8 +239,8 @@
                 </MenuItem>
             </MenuItem>
             <!-- 中身は開くたびに、その時点でつながっているデバイスから作る。 -->
-            <MenuItem x:Name="OutputMenu" Header="出力(_O)" SubmenuOpened="OnOutputMenuOpened">
-                <MenuItem Header="既定のデバイス" />
+            <MenuItem x:Name="OutputMenu" Header="{x:Static local:Strings.OutputMenu}" SubmenuOpened="OnOutputMenuOpened">
+                <MenuItem Header="{x:Static local:Strings.DefaultDevice}" />
             </MenuItem>
         </Menu>
 
@@ -256,7 +256,7 @@
             <Border.ContextMenu>
                 <ContextMenu Opening="OnHeaderMenuOpening">
                     <Separator />
-                    <MenuItem Header="閉じる" Click="OnExitClick" />
+                    <MenuItem Header="{x:Static local:Strings.Close}" Click="OnExitClick" />
                 </ContextMenu>
             </Border.ContextMenu>
         <Grid Margin="12,6,12,8" ColumnDefinitions="Auto,*" ColumnSpacing="12">
@@ -295,13 +295,13 @@
                     <ToggleButton Grid.Column="2"
                                   Classes="tool"
                                   IsChecked="{Binding AlwaysOnTop}"
-                                  ToolTip.Tip="常に手前に表示 (Ctrl+T)">
+                                  ToolTip.Tip="{x:Static local:Strings.AlwaysOnTopTip}">
                         <PathIcon Data="{StaticResource PinIcon}" />
                     </ToggleButton>
                     <ToggleButton Grid.Column="3"
                                   Classes="tool"
                                   IsChecked="{Binding MiniMode}"
-                                  ToolTip.Tip="ミニモード (Ctrl+M)">
+                                  ToolTip.Tip="{x:Static local:Strings.MiniModeTip}">
                         <PathIcon Data="{StaticResource MiniIcon}" />
                     </ToggleButton>
                 </Grid>
@@ -351,7 +351,7 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="4*" MinWidth="60" MaxWidth="110" />
                     </Grid.ColumnDefinitions>
-                    <Button Classes="transport" IsEnabled="{Binding HasItems}" ToolTip.Tip="前の曲 (Ctrl+←)" Click="OnPreviousClick">
+                    <Button Classes="transport" IsEnabled="{Binding HasItems}" ToolTip.Tip="{x:Static local:Strings.PreviousTip}" Click="OnPreviousClick">
                         <PathIcon Data="{StaticResource PreviousIcon}" />
                     </Button>
                     <Button Grid.Column="1"
@@ -365,14 +365,14 @@
                             <PathIcon Data="{StaticResource PauseIcon}" IsVisible="{Binding IsPlaying}" />
                         </Panel>
                     </Button>
-                    <Button Grid.Column="2" Classes="transport" IsEnabled="{Binding HasItems}" ToolTip.Tip="次の曲 (Ctrl+→)" Click="OnNextClick">
+                    <Button Grid.Column="2" Classes="transport" IsEnabled="{Binding HasItems}" ToolTip.Tip="{x:Static local:Strings.NextTip}" Click="OnNextClick">
                         <PathIcon Data="{StaticResource NextIcon}" />
                     </Button>
                     <Button Grid.Column="3"
                             Classes="transport minor"
                             Margin="4,0,0,0"
                             IsEnabled="{Binding HasTrack}"
-                            ToolTip.Tip="停止 (Ctrl+Space)"
+                            ToolTip.Tip="{x:Static local:Strings.StopTip}"
                             Click="OnStopClick">
                         <PathIcon Data="{StaticResource StopIcon}" />
                     </Button>
@@ -387,7 +387,7 @@
                     <!-- 押すとミュートを切り替える。音量の設定は残るので、解除するとミュートする前の音量に戻る。 -->
                     <Button Grid.Column="6"
                             Classes="transport minor"
-                            ToolTip.Tip="ミュート（音量は Ctrl+↑ / Ctrl+↓）"
+                            ToolTip.Tip="{x:Static local:Strings.MuteTip}"
                             Click="OnMuteClick">
                         <Panel>
                             <PathIcon Data="{StaticResource VolumeIcon}" Width="16" Height="16" IsVisible="{Binding !IsMuted}" />
@@ -437,12 +437,12 @@
                   PointerReleased="OnColumnHeaderPointerReleased"
                   PointerCaptureLost="OnColumnHeaderCaptureLost">
                 <Border Classes="header"><TextBlock Classes="header" Text="Tr" TextAlignment="Right" /></Border>
-                <Border Classes="header"><TextBlock Classes="header" Text="タイトル" TextTrimming="CharacterEllipsis" /></Border>
-                <Border Classes="header"><TextBlock Classes="header" Text="アーティスト" TextTrimming="CharacterEllipsis" /></Border>
-                <Border Classes="header"><TextBlock Classes="header" Text="アルバム" TextTrimming="CharacterEllipsis" /></Border>
-                <Border Classes="header"><TextBlock Classes="header" Text="アルバムアーティスト" TextTrimming="CharacterEllipsis" /></Border>
-                <Border Classes="header"><TextBlock Classes="header" Text="時間" TextAlignment="Right" /></Border>
-                <Border Classes="header"><TextBlock Classes="header" Text="ファイル名" TextTrimming="CharacterEllipsis" /></Border>
+                <Border Classes="header"><TextBlock Classes="header" Text="{x:Static local:Strings.ColumnTitle}" TextTrimming="CharacterEllipsis" /></Border>
+                <Border Classes="header"><TextBlock Classes="header" Text="{x:Static local:Strings.ColumnArtist}" TextTrimming="CharacterEllipsis" /></Border>
+                <Border Classes="header"><TextBlock Classes="header" Text="{x:Static local:Strings.ColumnAlbum}" TextTrimming="CharacterEllipsis" /></Border>
+                <Border Classes="header"><TextBlock Classes="header" Text="{x:Static local:Strings.ColumnAlbumArtist}" TextTrimming="CharacterEllipsis" /></Border>
+                <Border Classes="header"><TextBlock Classes="header" Text="{x:Static local:Strings.ColumnDuration}" TextAlignment="Right" /></Border>
+                <Border Classes="header"><TextBlock Classes="header" Text="{x:Static local:Strings.ColumnFileName}" TextTrimming="CharacterEllipsis" /></Border>
                 <Border Classes="header"><TextBlock Classes="header" Text="#" TextAlignment="Right" /></Border>
             </Grid>
             <!-- 順番を変えるドラッグの間、離したときに入る位置を示す線。 -->
@@ -466,33 +466,33 @@
                   右クリックのメニューでは文字キーで項目を選べないので、見出しに「(P)」のような表記は付けない。
                 -->
                 <ContextMenu Opening="OnPlaylistMenuOpening" Closed="OnPlaylistMenuClosed">
-                    <MenuItem x:Name="PlayFromHereItem" Header="この曲から再生" Click="OnPlayFromHereClick" />
-                    <MenuItem x:Name="PlayNextItem" Header="次にこの曲から再生" Click="OnPlayNextClick" />
+                    <MenuItem x:Name="PlayFromHereItem" Header="{x:Static local:Strings.PlayFromHere}" Click="OnPlayFromHereClick" />
+                    <MenuItem x:Name="PlayNextItem" Header="{x:Static local:Strings.PlayNext}" Click="OnPlayNextClick" />
                     <Separator />
-                    <MenuItem x:Name="MoveItem" Header="移動" SubmenuOpened="OnMoveMenuOpened">
-                        <MenuItem Header="上へ" Tag="Up" InputGesture="Alt+Up" Click="OnMoveClick" />
-                        <MenuItem Header="下へ" Tag="Down" InputGesture="Alt+Down" Click="OnMoveClick" />
+                    <MenuItem x:Name="MoveItem" Header="{x:Static local:Strings.MovePlain}" SubmenuOpened="OnMoveMenuOpened">
+                        <MenuItem Header="{x:Static local:Strings.MoveUpPlain}" Tag="Up" InputGesture="Alt+Up" Click="OnMoveClick" />
+                        <MenuItem Header="{x:Static local:Strings.MoveDownPlain}" Tag="Down" InputGesture="Alt+Down" Click="OnMoveClick" />
                         <Separator />
-                        <MenuItem Header="再生中の曲の次へ" Tag="AfterCurrent" Click="OnMoveClick" />
-                        <MenuItem Header="先頭へ" Tag="Top" Click="OnMoveClick" />
-                        <MenuItem Header="最後尾へ" Tag="Bottom" Click="OnMoveClick" />
+                        <MenuItem Header="{x:Static local:Strings.MoveAfterCurrentPlain}" Tag="AfterCurrent" Click="OnMoveClick" />
+                        <MenuItem Header="{x:Static local:Strings.MoveToTopPlain}" Tag="Top" Click="OnMoveClick" />
+                        <MenuItem Header="{x:Static local:Strings.MoveToBottomPlain}" Tag="Bottom" Click="OnMoveClick" />
                     </MenuItem>
-                    <MenuItem Header="並べ替え" IsEnabled="{Binding HasItems}">
-                        <MenuItem Header="曲順（#）" Tag="Order" Click="OnSortClick" />
-                        <MenuItem Header="トラック番号" Tag="TrackNumber" Click="OnSortClick" />
-                        <MenuItem Header="タイトル" Tag="Title" Click="OnSortClick" />
-                        <MenuItem Header="アーティスト" Tag="Artist" Click="OnSortClick" />
-                        <MenuItem Header="アルバムとトラック番号" Tag="Album" Click="OnSortClick" />
-                        <MenuItem Header="アルバムアーティスト" Tag="AlbumArtist" Click="OnSortClick" />
-                        <MenuItem Header="時間" Tag="Duration" Click="OnSortClick" />
-                        <MenuItem Header="ファイル名" Tag="FileName" Click="OnSortClick" />
-                        <MenuItem Header="フルパス" Tag="Path" Click="OnSortClick" />
+                    <MenuItem Header="{x:Static local:Strings.SortPlain}" IsEnabled="{Binding HasItems}">
+                        <MenuItem Header="{x:Static local:Strings.SortByOrderPlain}" Tag="Order" Click="OnSortClick" />
+                        <MenuItem Header="{x:Static local:Strings.SortByTrackNumberPlain}" Tag="TrackNumber" Click="OnSortClick" />
+                        <MenuItem Header="{x:Static local:Strings.SortByTitlePlain}" Tag="Title" Click="OnSortClick" />
+                        <MenuItem Header="{x:Static local:Strings.SortByArtistPlain}" Tag="Artist" Click="OnSortClick" />
+                        <MenuItem Header="{x:Static local:Strings.SortByAlbumPlain}" Tag="Album" Click="OnSortClick" />
+                        <MenuItem Header="{x:Static local:Strings.SortByAlbumArtistPlain}" Tag="AlbumArtist" Click="OnSortClick" />
+                        <MenuItem Header="{x:Static local:Strings.SortByDurationPlain}" Tag="Duration" Click="OnSortClick" />
+                        <MenuItem Header="{x:Static local:Strings.SortByFileNamePlain}" Tag="FileName" Click="OnSortClick" />
+                        <MenuItem Header="{x:Static local:Strings.SortByPathPlain}" Tag="Path" Click="OnSortClick" />
                     </MenuItem>
-                    <MenuItem Header="プレイリストをシャッフル" IsEnabled="{Binding HasItems}" Click="OnShuffleClick" />
-                    <MenuItem Header="現在の曲順でリナンバリング" IsEnabled="{Binding HasItems}" Click="OnRenumberClick" />
+                    <MenuItem Header="{x:Static local:Strings.ShufflePlain}" IsEnabled="{Binding HasItems}" Click="OnShuffleClick" />
+                    <MenuItem Header="{x:Static local:Strings.RenumberPlain}" IsEnabled="{Binding HasItems}" Click="OnRenumberClick" />
                     <Separator />
-                    <MenuItem x:Name="RemoveItem" Header="プレイリストから削除" InputGesture="Delete" Click="OnRemoveClick" />
-                    <MenuItem Header="プレイリストからすべて削除" IsEnabled="{Binding HasItems}" Click="OnClearClick" />
+                    <MenuItem x:Name="RemoveItem" Header="{x:Static local:Strings.RemovePlain}" InputGesture="Delete" Click="OnRemoveClick" />
+                    <MenuItem Header="{x:Static local:Strings.ClearPlain}" IsEnabled="{Binding HasItems}" Click="OnClearClick" />
                 </ContextMenu>
             </ListBox.ContextMenu>
             <ListBox.ItemTemplate>

@@ -1,3 +1,5 @@
+using SoundPlayerChiyomaru.Core.Localization;
+
 namespace SoundPlayerChiyomaru.Core.Decoding;
 
 /// <summary>
@@ -27,7 +29,7 @@ public sealed class DecoderRegistry : IAudioDecoderOpener
     {
         if (!File.Exists(path))
         {
-            throw new FileNotFoundException($"ファイルが見つかりません: {path}", path);
+            throw new FileNotFoundException(UiLanguage.Text($"ファイルが見つかりません: {path}", $"File not found: {path}"), path);
         }
 
         string extension = Path.GetExtension(path).ToLowerInvariant();
@@ -45,10 +47,12 @@ public sealed class DecoderRegistry : IAudioDecoderOpener
             }
         }
 
+        string name = Path.GetFileName(path);
+        string reasons = failures is null ? "" : string.Join(" / ", failures.Select(f => f.Message));
         throw new AudioDecodeException(
             failures is null
-                ? $"対応していない形式です: {Path.GetFileName(path)}"
-                : $"再生できない形式です: {Path.GetFileName(path)}（{string.Join(" / ", failures.Select(f => f.Message))}）",
+                ? UiLanguage.Text($"対応していない形式です: {name}", $"Unsupported format: {name}")
+                : UiLanguage.Text($"再生できない形式です: {name}（{reasons}）", $"Cannot play this format: {name} ({reasons})"),
             failures is null ? null : new AggregateException(failures));
     }
 

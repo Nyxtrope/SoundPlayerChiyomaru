@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Media.Imaging;
+using SoundPlayerChiyomaru.Core.Localization;
 using SoundPlayerChiyomaru.Core.Output;
 using SoundPlayerChiyomaru.Core.Playback;
 using SoundPlayerChiyomaru.Core.Settings;
@@ -28,6 +29,7 @@ public partial class SettingsWindow : Window
         nameof(MainWindowViewModel.SaveRelativePaths),
         nameof(MainWindowViewModel.ExternalOpenActionIndex),
         nameof(MainWindowViewModel.Theme),
+        nameof(MainWindowViewModel.Language),
         nameof(MainWindowViewModel.AlwaysOnTop),
     ];
 
@@ -46,12 +48,14 @@ public partial class SettingsWindow : Window
         InitializeComponent();
 
         BufferBox.ItemsSource = OutputDeviceSelection.BufferChoices
-            .Select(value => value == OutputDeviceSelection.DefaultBufferMilliseconds ? $"{value} ミリ秒（既定）" : $"{value} ミリ秒")
+            .Select(value => value == OutputDeviceSelection.DefaultBufferMilliseconds
+                ? UiLanguage.Text($"{value} ミリ秒（既定）", $"{value} ms (default)")
+                : UiLanguage.Text($"{value} ミリ秒", $"{value} ms"))
             .ToArray();
-        BitDepthBox.ItemsSource = new[] { "自動（既定、曲に合わせる）" }
-            .Concat(OutputDeviceSelection.BitDepthLimits.Select(bits => $"{bits} bit まで"))
+        BitDepthBox.ItemsSource = new[] { UiLanguage.Text("自動（既定、曲に合わせる）", "Auto (default, match the track)") }
+            .Concat(OutputDeviceSelection.BitDepthLimits.Select(bits => UiLanguage.Text($"{bits} bit まで", $"Up to {bits} bit")))
             .ToArray();
-        VersionText.Text = $"バージョン {MainWindowViewModel.AppVersion}";
+        VersionText.Text = UiLanguage.Text($"バージョン {MainWindowViewModel.AppVersion}", $"Version {MainWindowViewModel.AppVersion}");
 
         viewModel.PropertyChanged += OnViewModelPropertyChanged;
         viewModel.ColumnsChanged += OnColumnsChanged;
@@ -159,6 +163,8 @@ public partial class SettingsWindow : Window
                 radio.IsChecked = (radio.Tag as string) == external;
             }
 
+            LanguageBox.SelectedIndex = (int)viewModel.Language;
+            UpdateLanguageNotice();
             ThemeBox.SelectedIndex = (int)viewModel.Theme;
             AlwaysOnTopBox.IsChecked = viewModel.AlwaysOnTop;
         }
@@ -172,7 +178,7 @@ public partial class SettingsWindow : Window
     {
         IReadOnlyList<string> status = viewModel.DescribeOutput();
         OutputStatusText.Text = status.Count == 0
-            ? "出力していません（再生を始めると表示されます）"
+            ? UiLanguage.Text("出力していません（再生を始めると表示されます）", "Not outputting (shown when playback starts)")
             : string.Join("\n", viewModel.OutputNotice is { } notice ? [.. status, notice] : status);
     }
 
@@ -312,6 +318,52 @@ public partial class SettingsWindow : Window
 
     private void OnUnregisterAssociationClick(object? sender, RoutedEventArgs e) =>
         AssociationStatusText.Text = viewModel.UnregisterFileAssociation();
+
+    // 再起動の案内の表示は、ViewModel の変更の通知で LoadAll から直す。
+    private void OnLanguageChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (!loading && LanguageBox.SelectedIndex >= 0)
+        {
+            viewModel.Language = (AppLanguage)LanguageBox.SelectedIndex;
+        }
+    }
+
+    /// <summary>
+    /// 選んだ言語が今の画面の言語と違えば、再起動で反映されることと、再起動のボタンを出す。
+    /// 選び直して今の言語に戻った場合や、Windows に従う設定に変えても言語が変わらない場合は出さない。
+    /// </summary>
+    /// <remarks>
+    /// 二重起動の防止の印を持たずに動いている場合（受け渡しがうまくいかず単独で起動した、計測用の起動）は、ボタンを出さない。
+    /// 起動し直したプロセスが、印を持つ別のインスタンスへファイルなしを渡して終わってしまうため。
+    /// </remarks>
+    private void UpdateLanguageNotice()
+    {
+        LanguageRestartPanel.IsVisible = UiLanguage.Resolve(viewModel.Language, CultureInfo.CurrentUICulture) != UiLanguage.Current;
+        RestartButton.IsVisible = Program.Instance is not null;
+        RestartErrorText.IsVisible = false;
+    }
+
+    /// <summary>
+    /// メインウィンドウを閉じて終了し、終了処理が済んでから起動し直す（<see cref="Program.RestartRequested"/>）。
+    /// プレイリストと選んでいた曲は、普段の終了と同じく保存して引き継ぐ。
+    /// 先に保存を試し、保存できなければ再起動しない（起動し直しても言語の設定が古いままで、同じ案内が出続けるため）。
+    /// </summary>
+    private void OnRestartClick(object? sender, RoutedEventArgs e)
+    {
+        if (Owner is not Window main)
+        {
+            return;
+        }
+        if (!viewModel.SaveSession())
+        {
+            RestartErrorText.Text = viewModel.ErrorText;
+            RestartErrorText.IsVisible = true;
+            return;
+        }
+
+        Program.RestartRequested = true;
+        main.Close();
+    }
 
     private void OnThemeChanged(object? sender, SelectionChangedEventArgs e)
     {

@@ -2,6 +2,7 @@ using System.Runtime.InteropServices;
 using NAudio.CoreAudioApi;
 using NAudio.CoreAudioApi.Interfaces;
 using NAudio.Wave;
+using SoundPlayerChiyomaru.Core.Localization;
 
 namespace SoundPlayerChiyomaru.Core.Output;
 
@@ -135,8 +136,9 @@ public sealed class WasapiExclusiveOutput : WasapiOutput
             {
                 WaveFormat sourceFormat = source.Format;
                 ExclusiveFormatChoice choice = ExclusiveFormatResolver.Resolve(sourceFormat, new Probe(player), player.DeviceMixFormat, maxBitDepth)
-                    ?? throw new NotSupportedException(
-                        $"デバイスが排他モードで {sourceFormat.SampleRate} Hz / {sourceFormat.Channels} ch の音声を受け付けません");
+                    ?? throw new NotSupportedException(UiLanguage.Text(
+                        $"デバイスが排他モードで {sourceFormat.SampleRate} Hz / {sourceFormat.Channels} ch の音声を受け付けません",
+                        $"the device does not accept {sourceFormat.SampleRate} Hz / {sourceFormat.Channels} ch audio in exclusive mode"));
 
                 // 終端の後に流す無音は、出力のバッファの長さの 2 倍。渡し済みの音が鳴り終わるのを待つため。
                 pipeline = new ExclusiveModePipeline(
@@ -152,7 +154,9 @@ public sealed class WasapiExclusiveOutput : WasapiOutput
                     choice.DeviceFormat,
                     BitPerfectCapable: pipeline.BitPerfectCapable && passesThrough,
                     ResampledFrom: choice.SampleRateChanged ? sourceFormat.SampleRate : null,
-                    NormalPathReason: passesThrough ? pipeline.NormalPathReason : "出力側で形式を変換",
+                    NormalPathReason: passesThrough
+                        ? pipeline.NormalPathReason
+                        : UiLanguage.Text("出力側で形式を変換", "format converted by the output"),
                     notice);
                 return pipeline;
             });
@@ -187,7 +191,7 @@ public sealed class WasapiOutputFactory(OutputDeviceSelection selection) : IAudi
     public IAudioOutput Create(IPlaybackSource source)
     {
         string wanted = selection.ResolveDeviceId()
-            ?? throw new InvalidOperationException("使える出力デバイスがありません。");
+            ?? throw new InvalidOperationException(UiLanguage.Text("使える出力デバイスがありません。", "No output device is available."));
 
         int buffer = selection.BufferMilliseconds;
         int? maxBitDepth = selection.MaxBitDepth;
@@ -195,20 +199,20 @@ public sealed class WasapiOutputFactory(OutputDeviceSelection selection) : IAudi
         if (selection.PreferExclusive)
         {
             attempts.Add(new OutputAttempt(
-                "排他モードを使えません",
-                "排他モードで再生しています",
+                UiLanguage.Text("排他モードを使えません", "Cannot use exclusive mode"),
+                UiLanguage.Text("排他モードで再生しています", "Playing in exclusive mode"),
                 notice => new WasapiExclusiveOutput(wanted, source, notice, buffer, maxBitDepth)));
         }
         attempts.Add(new OutputAttempt(
-            "このデバイスを使えません",
-            "共有モードで再生しています",
+            UiLanguage.Text("このデバイスを使えません", "Cannot use this device"),
+            UiLanguage.Text("共有モードで再生しています", "Playing in shared mode"),
             notice => new WasapiSharedOutput(wanted, source, notice, buffer)));
 
         if (selection.DefaultDeviceId is { } fallback && fallback != wanted)
         {
             attempts.Add(new OutputAttempt(
-                "既定のデバイスを使えません",
-                "既定のデバイスで再生しています",
+                UiLanguage.Text("既定のデバイスを使えません", "Cannot use the default device"),
+                UiLanguage.Text("既定のデバイスで再生しています", "Playing on the default device"),
                 notice => new WasapiSharedOutput(fallback, source, notice, buffer)));
         }
 

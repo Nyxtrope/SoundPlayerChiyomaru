@@ -21,6 +21,15 @@ public enum AppTheme
     WindowsDark,
 }
 
+/// <summary>画面の言語の設定。実際に使う言語は <see cref="Localization.UiLanguage.Resolve"/> で決める。</summary>
+public enum AppLanguage
+{
+    /// <summary>Windows の表示言語に従う。</summary>
+    System,
+    Japanese,
+    English,
+}
+
 /// <summary>設定ファイルに保存する内容。</summary>
 public sealed class AppSettings
 {
@@ -61,6 +70,9 @@ public sealed class AppSettings
 
     /// <summary>画面の配色。</summary>
     public AppTheme Theme { get; set; }
+
+    /// <summary>画面の言語。変更は再起動で反映する。</summary>
+    public AppLanguage Language { get; set; }
 
     /// <summary>
     /// プレイリストの列。表示する順に並べる。読んだままでは欠けや重複がありうるので、

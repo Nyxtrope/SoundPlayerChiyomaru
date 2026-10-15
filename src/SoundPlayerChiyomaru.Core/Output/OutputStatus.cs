@@ -1,3 +1,5 @@
+using SoundPlayerChiyomaru.Core.Localization;
+
 namespace SoundPlayerChiyomaru.Core.Output;
 
 /// <summary>画面に出す、ビットパーフェクト再生の印。</summary>
@@ -37,7 +39,9 @@ public static class OutputStatus
         {
             return (
                 BitPerfectBadge.BitPerfect,
-                $"ビットパーフェクトで出力しています。\n（{ExclusiveFormatResolver.Describe(output.DeviceFormat)}）");
+                UiLanguage.Text(
+                    $"ビットパーフェクトで出力しています。\n（{ExclusiveFormatResolver.Describe(output.DeviceFormat)}）",
+                    $"Bit-perfect output.\n({ExclusiveFormatResolver.Describe(output.DeviceFormat)})"));
         }
         if (!exclusiveWanted)
         {
@@ -45,7 +49,9 @@ public static class OutputStatus
         }
         if (!output.Exclusive || output.DeviceFormat is null)
         {
-            return (BitPerfectBadge.Unavailable, output.Notice ?? "排他モードで出力できていません。共有モードで再生しています。");
+            return (BitPerfectBadge.Unavailable, output.Notice ?? UiLanguage.Text(
+                "排他モードで出力できていません。共有モードで再生しています。",
+                "Exclusive mode is not in use. Playing in shared mode."));
         }
         if (!volumeIsMax || replayGain)
         {
@@ -54,10 +60,12 @@ public static class OutputStatus
         }
 
         string reason = output.ResampledFrom is { } from
-            ? $"デバイスがこの曲のサンプルレートに対応していないので、リサンプリングしています（{from} → {output.DeviceFormat.SampleRate} Hz）。"
+            ? UiLanguage.Text(
+                $"デバイスがこの曲のサンプルレートに対応していないので、リサンプリングしています（{from} → {output.DeviceFormat.SampleRate} Hz）。",
+                $"The device does not support this track's sample rate, so it is resampled ({from} → {output.DeviceFormat.SampleRate} Hz).")
             : output.NormalPathReason is { } why
-                ? $"ビットパーフェクトにできません（{why}）。"
-                : "ビットパーフェクトにできません。";
+                ? UiLanguage.Text($"ビットパーフェクトにできません（{why}）。", $"Bit-perfect output is not possible ({why}).")
+                : UiLanguage.Text("ビットパーフェクトにできません。", "Bit-perfect output is not possible.");
         return (BitPerfectBadge.Unavailable, reason);
     }
 
@@ -70,19 +78,26 @@ public static class OutputStatus
         var lines = new List<string>(3);
         if (!output.Exclusive || output.DeviceFormat is null)
         {
-            lines.Add("WASAPI 共有（通常経路）");
+            lines.Add(UiLanguage.Text("WASAPI 共有（通常経路）", "WASAPI shared (normal path)"));
         }
         else
         {
             string route = isBitPerfect
-                ? "ビットパーフェクト"
+                ? UiLanguage.Text("ビットパーフェクト", "Bit-perfect")
                 : output.ResampledFrom is { } from
-                    ? $"通常経路（リサンプリング {from} → {output.DeviceFormat.SampleRate} Hz）"
+                    ? UiLanguage.Text(
+                        $"通常経路（リサンプリング {from} → {output.DeviceFormat.SampleRate} Hz）",
+                        $"Normal path (resampling {from} → {output.DeviceFormat.SampleRate} Hz)")
                     : output.BitPerfectCapable
-                        ? replayGain ? "通常経路（ReplayGain）" : "通常経路（音量調整）"
-                        : output.NormalPathReason is { } reason ? $"通常経路（{reason}）" : "通常経路";
-            lines.Add($"WASAPI 排他  ·  {route}");
-            lines.Add($"出力 {ExclusiveFormatResolver.Describe(output.DeviceFormat)}");
+                        ? replayGain
+                            ? UiLanguage.Text("通常経路（ReplayGain）", "Normal path (ReplayGain)")
+                            : UiLanguage.Text("通常経路（音量調整）", "Normal path (volume)")
+                        : output.NormalPathReason is { } reason
+                            ? UiLanguage.Text($"通常経路（{reason}）", $"Normal path ({reason})")
+                            : UiLanguage.Text("通常経路", "Normal path");
+            lines.Add(UiLanguage.Text($"WASAPI 排他  ·  {route}", $"WASAPI exclusive  ·  {route}"));
+            string format = ExclusiveFormatResolver.Describe(output.DeviceFormat);
+            lines.Add(UiLanguage.Text($"出力 {format}", $"Output {format}"));
         }
 
         if (!string.IsNullOrEmpty(deviceName))

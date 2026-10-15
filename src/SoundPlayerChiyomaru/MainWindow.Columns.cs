@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
+using SoundPlayerChiyomaru.Core.Localization;
 using SoundPlayerChiyomaru.Core.Playlists;
 using SoundPlayerChiyomaru.Core.Settings;
 
@@ -18,10 +19,6 @@ public partial class MainWindow
     private const double GripHalfWidth = 5;
 
     private static readonly Cursor ResizeCursor = new(StandardCursorType.SizeWestEast);
-
-    /// <summary>列の名前。並びは <see cref="PlaylistColumn"/> の値の順。</summary>
-    private static readonly string[] ColumnNames =
-        ["トラック番号", "タイトル", "アーティスト", "アルバム", "アルバムアーティスト", "時間", "ファイル名", "曲順（#）"];
 
     /// <summary>見出しをクリックしたときの並べ替えの鍵。並びは <see cref="PlaylistColumn"/> の値の順。</summary>
     private static readonly PlaylistSortKey[] ColumnSortKeys =
@@ -232,28 +229,29 @@ public partial class MainWindow
         int next = ColumnLayout.NextVisible(columns, index);
         // 曲の右クリックと同じ部品（ContextMenu）を使う。MenuFlyout だと、下の階層がある項目の「>」が右端で切れた。
         var menu = new ContextMenu();
+        string[] names = Strings.ColumnNames;
 
-        var moveLeft = new MenuItem { Header = "左へ移動", IsEnabled = previous >= 0 };
+        var moveLeft = new MenuItem { Header = UiLanguage.Text("左へ移動", "Move Left"), IsEnabled = previous >= 0 };
         moveLeft.Click += (_, _) => viewModel.MoveColumn(index, previous);
         menu.Items.Add(moveLeft);
 
-        var moveRight = new MenuItem { Header = "右へ移動", IsEnabled = next >= 0 };
+        var moveRight = new MenuItem { Header = UiLanguage.Text("右へ移動", "Move Right"), IsEnabled = next >= 0 };
         moveRight.Click += (_, _) => viewModel.MoveColumn(index, next + 1);
         menu.Items.Add(moveRight);
 
         // タイトルの列は隠せない（すべての列を隠すと、一覧に何も出なくなる）。
-        var hide = new MenuItem { Header = $"「{ColumnNames[(int)id]}」を隠す", IsEnabled = id != PlaylistColumn.Title };
+        var hide = new MenuItem { Header = UiLanguage.Text($"「{names[(int)id]}」を隠す", $"Hide \"{names[(int)id]}\""), IsEnabled = id != PlaylistColumn.Title };
         hide.Click += (_, _) => viewModel.SetColumnVisible(id, false);
         menu.Items.Add(hide);
         menu.Items.Add(new Separator());
 
         PlaylistColumn[] hidden = [.. columns.Where(column => !column.Visible).Select(column => column.Id).Order()];
-        foreach ((string header, int before) in new[] { ("左に列を追加", index), ("右に列を追加", index + 1) })
+        foreach ((string header, int before) in new[] { (UiLanguage.Text("左に列を追加", "Add Column to the Left"), index), (UiLanguage.Text("右に列を追加", "Add Column to the Right"), index + 1) })
         {
             var add = new MenuItem { Header = header, IsEnabled = hidden.Length > 0 };
             foreach (PlaylistColumn column in hidden)
             {
-                var item = new MenuItem { Header = ColumnNames[(int)column] };
+                var item = new MenuItem { Header = names[(int)column] };
                 item.Click += (_, _) => viewModel.ShowColumn(column, before);
                 add.Items.Add(item);
             }

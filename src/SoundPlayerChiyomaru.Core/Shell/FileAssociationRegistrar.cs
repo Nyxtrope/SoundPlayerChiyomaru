@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using Microsoft.Win32;
+using SoundPlayerChiyomaru.Core.Localization;
 
 namespace SoundPlayerChiyomaru.Core.Shell;
 
@@ -51,7 +52,7 @@ public sealed class FileAssociationRegistrar
     {
         using (RegistryKey progId = softwareRoot.CreateSubKey($@"Classes\{ProgId}"))
         {
-            progId.SetValue(null, $"{AppName} 音声ファイル");
+            progId.SetValue(null, UiLanguage.Text($"{AppName} 音声ファイル", $"{AppName} audio file"));
             using RegistryKey icon = progId.CreateSubKey("DefaultIcon");
             icon.SetValue(null, $"\"{executablePath}\",0");
             using RegistryKey command = progId.CreateSubKey(@"shell\open\command");
@@ -74,7 +75,7 @@ public sealed class FileAssociationRegistrar
         using (RegistryKey capabilities = softwareRoot.CreateSubKey(AppName + @"\Capabilities"))
         {
             capabilities.SetValue("ApplicationName", AppName);
-            capabilities.SetValue("ApplicationDescription", "軽量音楽プレーヤー");
+            capabilities.SetValue("ApplicationDescription", UiLanguage.Text("軽量音楽プレーヤー", "Lightweight music player"));
             using RegistryKey associations = capabilities.CreateSubKey("FileAssociations");
             foreach (string extension in extensions)
             {

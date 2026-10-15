@@ -1,147 +1,160 @@
 # SoundPlayerChiyomaru
 
-Windows 11 向けの、軽くて音のよい音楽プレーヤーです。
+English | [日本語](README.ja.md)
 
-曲を集めて管理する「ライブラリ」の機能は持ちません。聴きたいファイルやフォルダを放り込んで、すぐに再生する使い方に絞っています。
+A lightweight, fast music player for Windows 11. Just drop in files or folders and play.
 
-## コンセプト
+<p align="center">
+  <img src="docs/images/main-light-en.png" width="572" alt="The main window of SoundPlayerChiyomaru">
+</p>
 
-何を優先するかを、次の順に決めています。
+## Features
 
-1. **軽さ** — 起動が速く、メモリと CPU をあまり使わないこと
-2. **音質** — 余計な加工をせず、デバイスへそのまま届けられること
-3. **プレイリストの編集の手軽さ** — 並べ替えや追加がすぐにできること
-4. **機能の多さ** — 上の 3 つを損なわない範囲で足すこと
+- **Starts fast, stays light** — The window appears in about 0.1 seconds, and memory use stays under 100 MB while playing (measured on the author's machine). It is built with Native AOT, so no .NET runtime needs to be installed.
+- **No library** — There is nothing to import or manage. Drag and drop the files or folders you want to hear onto the window. Your playlist is still there the next time you start the app.
+- **Easy playlist editing** — Reorder by dragging, sort by clicking a column header, move the selected tracks, and undo or redo any edit.
+- **No sound processing** — There is no equalizer or crossfade. WASAPI exclusive mode is supported.
+- **Gapless playback**, ReplayGain, tags and album artwork, and media keys.
+- **Portable** — Put the folder anywhere you like. Settings are saved in the same folder.
+- **English and Japanese** — The app follows the Windows display language, and you can also choose one in the settings.
 
-そのため、次のような作りになっています。
+<p align="center">
+  <img src="docs/images/mini-light-en.png" width="422" alt="Mini mode">
+  &nbsp;
+  <img src="docs/images/mini-dark-en.png" width="422" alt="Mini mode in the dark theme">
+</p>
+<p align="center">Mini mode. Choose the app's own colors or the Windows colors, each in light, dark, or following the Windows setting.</p>
 
-- 起動してウィンドウが出るまで約 0.1 秒、再生中のメモリは 100MB 以下を目安にしています（作者の環境での計測）。
-- WASAPI 排他モードでは、デコードした音を値を変えずにデバイスへ渡せます（ビットパーフェクト再生）。そうなっている間は、画面に「BP」の印が出ます。
-- インストールは不要です。フォルダごと好きな場所に置いて使えます。設定もそのフォルダの中に保存します。
-- イコライザーやクロスフェードなど、音を加工する機能は入れていません。
+## Download
 
-## 動作環境
+Download `SoundPlayerChiyomaru-<version>-win-x64.zip` from [Releases](../../releases) and extract it anywhere. The `-symbols.zip` file is only for investigating crashes; you do not need it to use the app.
 
-- Windows 11（64 ビット）
-- .NET のランタイムなどの追加のインストールは不要です。
+The app is not signed, so Windows SmartScreen may show a warning the first time you start it. If it does, select "More info" and then "Run anyway".
 
-## 対応している形式
+## Requirements
 
-| 種類 | 形式 |
+- Windows 11 (64-bit)
+- Nothing else to install.
+
+## Supported formats
+
+| Kind | Formats |
 |---|---|
-| 曲 | MP3、FLAC、WAV、AAC（M4A）、WMA |
-| プレイリスト（読み込み） | M3U8、M3U、PLS |
-| プレイリスト（保存） | M3U8 |
+| Audio | MP3, FLAC, WAV, AAC (M4A), WMA |
+| Playlists (open) | M3U8, M3U, PLS |
+| Playlists (save) | M3U8 |
 
-タグ（タイトル、アーティスト、アルバムなど）とアルバムアートワークを表示します。アートワークがタグにない場合は、曲と同じフォルダの `folder.jpg` を使います。
+The app shows tags (title, artist, album, and so on) and album artwork. If a track has no embedded artwork, `folder.jpg` in the same folder is used.
 
-## 使い方
+## Usage
 
-### 起動する
+### Starting the app
 
-配布されたフォルダを好きな場所に置いて、`SoundPlayerChiyomaru.exe` を実行します。フォルダの中のファイル（`.dll` など）は、まとめて同じ場所に置いてください。
+Run `SoundPlayerChiyomaru.exe` in the extracted folder. Keep the other files in the folder (such as the `.dll` files) together with it.
 
-設定（`settings.json`）と、作業中のプレイリスト（`playlist.m3u8`）は、同じフォルダに保存されます。アンインストールするときは、フォルダごと削除します。
+Settings (`settings.json`) and the current playlist (`playlist.m3u8`) are saved in the same folder. To uninstall, delete the folder.
 
-### 曲を再生する
+### Playing music
 
-- ウィンドウに、曲のファイルやフォルダをドラッグ & ドロップします。
-  - プレイリストの中に落とすと、その位置に追加します。
-  - それ以外の場所（曲名や再生ボタンのあたり）に落とすと、プレイリストを置き換えて再生します。この動作は設定で「末尾に追加」「追加して再生」に変えられます。
-- または「ファイル」メニューの「開く」「ファイルを追加」「フォルダを追加」を使います。
-- プレイリストの曲をダブルクリックすると、その曲から再生します。
+- Drag and drop audio files or folders onto the window.
+  - Drop them on the playlist to insert them at that position.
+  - Drop them anywhere else (around the title or the play button) to replace the playlist and start playing. In the settings, you can change this to "Add to the end" or "Add and play".
+- Or use Open, Add Files, or Add Folder in the File menu.
+- Double-click a track in the playlist to play from that track.
 
-次に起動したときは、前回のプレイリストと選んでいた曲がそのまま残っています。
+### Editing the playlist
 
-### プレイリストを編集する
+- Drag tracks to reorder them. You can select several tracks and move them together.
+- Right-click a track for commands such as Play from This Track, Play This Track Next, Sort, Shuffle Playlist, and Remove from Playlist.
+- Move in the right-click menu moves the selected tracks up, down, after the current track, to the top, or to the bottom. Alt+↑ / Alt+↓ also move them up and down.
+- Undo any edit with Ctrl+Z.
+- Click a column header (Title, Artist, and so on) to sort by that column. Click it again to reverse the order. Sorting changes the order of the playlist itself, and you can undo it.
+- Drag the border between headers to resize a column, or drag a header to move the column. Right-click a header to show or hide columns.
+- The "#" column on the left is the original track order. The number stays with each track through shuffling and sorting, so Sort → Original Order (#) brings back the original order.
 
-- 曲をドラッグして並べ替えられます。複数選んでまとめて動かすこともできます。
-- 曲を右クリックすると、「この曲から再生」「次にこの曲から再生」「並べ替え」「シャッフル」「プレイリストから削除」などが選べます。
-- 右クリックの「移動」で、選んだ曲を「上へ」「下へ」「再生中の曲の次へ」「先頭へ」「最後尾へ」動かせます。上と下は Alt+↑ / Alt+↓ でも動かせます。
-- 編集は「元に戻す」（Ctrl+Z）で取り消せます。
-- 見出し（タイトル、アーティストなど）をクリックすると、その列で並べ替えます。もう一度クリックすると逆の順になります。並べ替えはプレイリストの並びそのものを変えますが、「元に戻す」で戻せます。
-- 見出しの境目をドラッグすると列の幅が、見出しそのものをドラッグすると列の順番が変わります。見出しを右クリックすると、列を隠したり足したりできます。
-- 左端の「#」は曲順の番号です。シャッフルや並べ替えをしても番号は曲に付いたままなので、「並べ替え」→「曲順（#）」で元の順に戻せます。
+Removing a track from the playlist never deletes the file.
 
-「プレイリストから削除」は一覧から外すだけで、ファイルは消しません。
+### Play modes
 
-### 再生モード
+Switch modes with the button to the right of the stop button, or from Play Mode in the Play menu.
 
-停止ボタンの右のボタン、または「再生」メニューの「再生モード」で切り替えます。
-
-| モード | 動き |
+| Mode | Behavior |
 |---|---|
-| 通常 | 順に再生して、最後の曲で止まります |
-| 1曲リピート | 今の曲を繰り返します |
-| 全曲リピート | 最後の曲の次は、最初に戻ります |
-| ランダム | 無作為に選んで再生し続けます |
-| 1ショット | 今の曲が終わったら止まります |
+| Normal | Plays in order and stops after the last track |
+| Repeat One | Repeats the current track |
+| Repeat All | Goes back to the first track after the last one |
+| Random | Keeps picking tracks at random |
+| One Shot | Stops when the current track ends |
 
-### ビットパーフェクト再生
+To hear every track once in a random order, shuffle the playlist and play it in Normal mode.
 
-1. 「出力」メニューで、使うデバイスを選びます。
-2. 同じメニューで「排他モード」にチェックを入れます。
-3. 音量を最大にし、ReplayGain をオフにします。
+### Exclusive mode
 
-条件がそろうと、曲名の右に「BP」の印が出ます。排他モードを選んでいるのにビットパーフェクトにできていないときは「× BP」に変わり、マウスを乗せると理由が出ます。
+Choose a device in the Output menu and check Exclusive mode to let the app use that device on its own. With the volume at maximum and ReplayGain off, decoded audio reaches the device with its sample values unchanged, and a "BP" mark appears to the right of the title. If exclusive mode is selected but this is not possible, the mark changes to "× BP"; hover over it to see why.
 
-排他モードの間は、他のアプリの音（通知音を含む）がそのデバイスから鳴らなくなります。
+While exclusive mode is on, other apps (including notification sounds) cannot play through that device.
 
-### ミニモード
+### Mini mode
 
-曲名の右のボタン、または Ctrl+M で、プレイリストを隠した小さなウィンドウに切り替えます。曲名のあたりをつかんで動かします。同じボタンか Ctrl+M で元に戻せます。
+Press the button to the right of the title, or Ctrl+M, to hide the playlist and switch to a small window. Drag it by the title area. Press the same button or Ctrl+M again to switch back.
 
-曲名や操作のボタンのあたりを右クリックすると、メニューバーと同じ「ファイル」「再生」「表示」「出力」のメニューと「閉じる」が出ます。ミニモードでも、ここから出力の切り替えや設定を開けます。
+Right-click around the title or the playback buttons to open the same File, Play, View, and Output menus as the menu bar, plus Close. This lets you change the output or open the settings in mini mode too.
 
-### 設定
+### Settings
 
-「ファイル」メニューの「設定」（Ctrl+,）で開きます。変更はその場で反映されます。出力のバッファの長さ、配色（「表示」メニューからも変えられます）、表示する列、他のアプリからファイルを開いたときの動作、ファイルの関連付けなどを変えられます。
+Open them with Settings in the File menu, or Ctrl+,. Changes take effect immediately. You can change the output buffer length, the color theme (also in the View menu), which columns to show, what happens when another app opens a file, file associations, and more.
 
-### キーボード操作
+The display language is under Display → Language / 言語. Choose Follow Windows (the default), 日本語, or English. A new language takes effect after a restart; select Restart Now to restart right away. Your playlist and selected track are kept.
 
-| 操作 | キー |
+<p align="center">
+  <img src="docs/images/main-dark-en.png" width="572" alt="The main window in the dark theme">
+</p>
+
+### Keyboard shortcuts
+
+| Action | Key |
 |---|---|
-| 再生 / 一時停止 | Space |
-| 停止 | Ctrl+Space |
-| 次の曲 / 前の曲 | Ctrl+→ / Ctrl+← |
-| 5 秒進む / 戻る | → / ←（シークバーの上でホイールを回しても動きます） |
-| 音量を上げる / 下げる | Ctrl+↑ / Ctrl+↓（音量のスライダーの上でホイールを回しても変わります） |
-| ミュート | M |
-| ミニモード | Ctrl+M |
-| 常に手前に表示 | Ctrl+T |
-| 設定 | Ctrl+, |
-| 開く | Ctrl+O |
-| プレイリストを上書き保存 / 名前を付けて保存 | Ctrl+S / Ctrl+Shift+S |
-| 元に戻す / やり直し | Ctrl+Z / Ctrl+Y |
-| 選んだ曲を上へ / 下へ | Alt+↑ / Alt+↓ |
-| プレイリストから削除 | Delete |
-| すべて選択 | Ctrl+A |
+| Play / pause | Space |
+| Stop | Ctrl+Space |
+| Next / previous track | Ctrl+→ / Ctrl+← |
+| Forward / back 5 seconds | → / ← (or scroll the mouse wheel over the seek bar) |
+| Volume up / down | Ctrl+↑ / Ctrl+↓ (or scroll the mouse wheel over the volume slider) |
+| Mute | M |
+| Mini mode | Ctrl+M |
+| Always on top | Ctrl+T |
+| Settings | Ctrl+, |
+| Open | Ctrl+O |
+| Save playlist / Save as | Ctrl+S / Ctrl+Shift+S |
+| Undo / redo | Ctrl+Z / Ctrl+Y |
+| Move selected tracks up / down | Alt+↑ / Alt+↓ |
+| Remove from playlist | Delete |
+| Select all | Ctrl+A |
 
-キーボードのメディアキー（再生、次の曲など）にも対応しています。
+Media keys on the keyboard (play, next track, and so on) also work.
 
-## ソースからビルドする
+## Building from source
 
-必要なもの:
+You need:
 
 - .NET 10 SDK
-- Visual Studio 2022 以降の「C++ によるデスクトップ開発」（Native AOT のリンクに使います）
+- The "Desktop development with C++" workload of Visual Studio 2022 or later (used to link Native AOT)
 
 ```
 dotnet publish src/SoundPlayerChiyomaru -c Release -r win-x64 -o publish
 ```
 
-`publish` フォルダに、実行に必要なファイルがそろいます。
+The `publish` folder then contains everything needed to run the app. To build the release zips, run `tools/Publish-Release.ps1`.
 
-テストは次のコマンドで実行します。
+To run the tests:
 
 ```
 dotnet test
 ```
 
-設計の詳細と、判断の経緯や計測結果は [docs/SPEC.md](docs/SPEC.md) にまとめています。変更の履歴は [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md) にあります。
+Built with .NET 10 (Native AOT), [Avalonia](https://avaloniaui.net/), and [NAudio](https://github.com/naudio/NAudio). The design, the reasons behind decisions, and measurements are in [docs/SPEC.md](docs/SPEC.md) (Japanese). The change history is in [docs/RELEASE_NOTES.md](docs/RELEASE_NOTES.md) (Japanese).
 
-## ライセンス
+## License
 
-[MIT License](LICENSE) です。
+[MIT License](LICENSE).
 
-このアプリが利用しているライブラリのライセンスは [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt) に載せています。アプリの中では、設定画面の「バージョン情報」で読めます。
+Licenses of the libraries used by this app are in [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt). In the app, you can read them under About in the settings.

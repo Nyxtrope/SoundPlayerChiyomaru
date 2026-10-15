@@ -1,5 +1,6 @@
 using NAudio.Wave;
 using SoundPlayerChiyomaru.Core.Decoding;
+using SoundPlayerChiyomaru.Core.Localization;
 using SoundPlayerChiyomaru.Core.Output;
 
 namespace SoundPlayerChiyomaru.Core.Playback;
@@ -557,7 +558,7 @@ public sealed class PlaybackService : IDisposable
             return;
         }
 
-        reason ??= new InvalidOperationException("出力デバイスが使えなくなりました。");
+        reason ??= new InvalidOperationException(UiLanguage.Text("出力デバイスが使えなくなりました。", "The output device is no longer available."));
         if (CanRetryAfterDeviceLoss())
         {
             try

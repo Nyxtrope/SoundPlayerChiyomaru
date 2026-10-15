@@ -1,4 +1,5 @@
 using NAudio.Wave;
+using SoundPlayerChiyomaru.Core.Localization;
 
 namespace SoundPlayerChiyomaru.Core.Decoding;
 
@@ -15,7 +16,7 @@ public sealed class WaveStreamDecoder : IAudioDecoder
         WaveFormat format = stream.WaveFormat.AsStandardWaveFormat();
         if (format.Encoding is not (WaveFormatEncoding.Pcm or WaveFormatEncoding.IeeeFloat))
         {
-            throw new NotSupportedException($"PCM ではない形式です: {format.Encoding}");
+            throw new NotSupportedException(UiLanguage.Text($"PCM ではない形式です: {format.Encoding}", $"Not a PCM format: {format.Encoding}"));
         }
 
         this.stream = stream;

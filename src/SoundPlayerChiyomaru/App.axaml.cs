@@ -3,6 +3,7 @@ using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Markup.Xaml;
 using Microsoft.Win32;
 using SoundPlayerChiyomaru.Core.Decoding;
+using SoundPlayerChiyomaru.Core.Localization;
 using SoundPlayerChiyomaru.Core.Output;
 using SoundPlayerChiyomaru.Core.Playback;
 using SoundPlayerChiyomaru.Core.Playlists;
@@ -24,6 +25,12 @@ public partial class App : Application
             SynchronizationContext context = SynchronizationContext.Current
                 ?? throw new InvalidOperationException("UI スレッドの SynchronizationContext がありません。");
 
+            // ポータブル運用のため、設定と作業中プレイリストは実行ファイルの隣に置く（SPEC 7 章）。
+            // 画面の文はどれも言語が決まってから作るので、設定は最初に読んで言語を決める。
+            var store = new SettingsStore(AppContext.BaseDirectory);
+            AppSettings settings = store.Load();
+            UiLanguage.Apply(settings.Language);
+
             var decoders = DecoderRegistry.CreateDefault();
             WasapiDeviceService? wasapiDevices = WasapiDeviceService.TryCreate();
             IAudioDeviceService deviceService = wasapiDevices is null ? new NoAudioDeviceService() : wasapiDevices;
@@ -34,8 +41,6 @@ public partial class App : Application
             var playlist = new Playlist();
             var player = new PlaylistPlayer(playlist, playback);
 
-            // ポータブル運用のため、設定と作業中プレイリストは実行ファイルの隣に置く（SPEC 7 章）。
-            var store = new SettingsStore(AppContext.BaseDirectory);
             RegistryKey software = Registry.CurrentUser.CreateSubKey("Software");
             var viewModel = new MainWindowViewModel(
                 playlist,
@@ -44,7 +49,7 @@ public partial class App : Application
                 new PathExpander(decoders.SupportedExtensions),
                 new TrackInfoLoader(tagReader, context),
                 store,
-                store.Load(),
+                settings,
                 decoders.SupportedExtensions,
                 new FileAssociationRegistrar(
                     software,

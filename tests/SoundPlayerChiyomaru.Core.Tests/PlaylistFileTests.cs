@@ -279,6 +279,7 @@ public class SettingsStoreTests : TempDirectoryTest
         Assert.Equal(200, settings.BufferMilliseconds);
         Assert.Null(settings.MaxOutputBitDepth);
         Assert.False(settings.ExcludeDuplicates);
+        Assert.Equal(AppLanguage.System, settings.Language);
     }
 
     [Fact]
@@ -297,6 +298,7 @@ public class SettingsStoreTests : TempDirectoryTest
             BufferMilliseconds = 100,
             MaxOutputBitDepth = 16,
             ExcludeDuplicates = true,
+            Language = AppLanguage.English,
         });
         AppSettings loaded = new SettingsStore(Root).Load();
 
@@ -309,7 +311,9 @@ public class SettingsStoreTests : TempDirectoryTest
         Assert.True(loaded.SaveRelativePaths);
         Assert.Equal(@"C:\音楽\list.m3u8", loaded.PlaylistFilePath);
         Assert.Equal(7, loaded.CurrentIndex);
+        Assert.Equal(AppLanguage.English, loaded.Language);
         Assert.Contains("\"OneShot\"", File.ReadAllText(At("settings.json")));
+        Assert.Contains("\"English\"", File.ReadAllText(At("settings.json")));
         Assert.Equal(["settings.json"], Directory.GetFiles(Root).Select(Path.GetFileName));
     }
 

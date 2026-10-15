@@ -1,5 +1,6 @@
 using NAudio.Wave;
 using NAudio.Wave.SampleProviders;
+using SoundPlayerChiyomaru.Core.Localization;
 
 namespace SoundPlayerChiyomaru.Core.Output;
 
@@ -152,7 +153,7 @@ public sealed class ExclusiveModePipeline : IWaveProvider
     {
         if (choice.ChannelsChanged)
         {
-            return "モノラルをステレオに変換";
+            return UiLanguage.Text("モノラルをステレオに変換", "mono converted to stereo");
         }
         if (choice.SampleRateChanged || bitPerfectCapable)
         {
@@ -160,11 +161,12 @@ public sealed class ExclusiveModePipeline : IWaveProvider
         }
         if (sourceFormat.Encoding == WaveFormatEncoding.IeeeFloat)
         {
-            return deviceIsFloat ? null : "float を整数に変換";
+            return deviceIsFloat ? null : UiLanguage.Text("float を整数に変換", "float converted to integer");
         }
-        return sourceFormat.BitsPerSample > validBits
-            ? $"{sourceFormat.BitsPerSample} bit を {validBits} bit に変換"
-            : $"{sourceFormat.BitsPerSample} bit は通常経路で処理";
+        int bits = sourceFormat.BitsPerSample;
+        return bits > validBits
+            ? UiLanguage.Text($"{bits} bit を {validBits} bit に変換", $"{bits} bit converted to {validBits} bit")
+            : UiLanguage.Text($"{bits} bit は通常経路で処理", $"{bits} bit handled on the normal path");
     }
 
     public int Read(Span<byte> buffer)
