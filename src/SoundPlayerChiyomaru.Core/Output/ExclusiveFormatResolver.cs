@@ -28,8 +28,12 @@ public static class ExclusiveFormatResolver
     /// <summary>
     /// 形式を決める。優先するのは、(1) 曲と同じサンプルレートで値を変えずに収まる形式、(2) 同じサンプルレートでビット数が減る形式、
     /// (3) 別のサンプルレート（整数倍、次に高いほう、最後に低いほう）、の順。モノラルの曲は、サンプルレートごとに、
-    /// モノラルが受け付けられなければステレオで探す。
+    /// ステレオ（左右に同じ値）を先に探し、受け付けられなければモノラルで探す。デバイスがモノラル（ミックス形式が 1ch）なら逆の順。
     /// </summary>
+    /// <remarks>
+    /// ステレオのデバイスでも、モノラルの形式を「受け付ける」と答えるのに、渡すと音が出ないドライバーがある（Rubix 24 で確認）。
+    /// 左右に複製してもサンプル値は変わらないので、ステレオのデバイスにはステレオで渡す。
+    /// </remarks>
     /// <param name="mixFormat">デバイスの共有モードの形式。そのサンプルレートを最後の候補として使う。</param>
     /// <param name="maxBitDepth">
     /// 有効ビット数の上限。null は上限なし。指定すると、それより大きい整数の形式と float の形式は試さない
@@ -40,7 +44,9 @@ public static class ExclusiveFormatResolver
         WaveFormat source, IExclusiveFormatProbe probe, WaveFormat? mixFormat, int? maxBitDepth = null)
     {
         WaveFormat standard = source.AsStandardWaveFormat();
-        int[] channelOptions = standard.Channels == 1 ? [1, 2] : [standard.Channels];
+        int[] channelOptions = standard.Channels != 1 ? [standard.Channels]
+            : mixFormat is { Channels: 1 } ? [1, 2]
+            : [2, 1];
 
         // サンプルレートを外側で回す。リサンプリングは音を変えるので、モノラルのままリサンプリングするより、
         // 同じサンプルレートのままステレオに広げるほうを先に選ぶ。

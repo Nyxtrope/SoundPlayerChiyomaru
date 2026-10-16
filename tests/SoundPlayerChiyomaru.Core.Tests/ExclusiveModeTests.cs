@@ -178,8 +178,23 @@ public class PcmConversionTests
 
         Assert.False(PcmConversion.CanWidenLosslessly(WaveFormat.CreateIeeeFloatWaveFormat(48000, 2), device));
         Assert.False(PcmConversion.CanWidenLosslessly(new WaveFormat(44100, 16, 2), device));
-        Assert.False(PcmConversion.CanWidenLosslessly(new WaveFormat(48000, 16, 1), device));
+        Assert.False(PcmConversion.CanWidenLosslessly(new WaveFormat(48000, 16, 2), new WaveFormat(48000, 16, 1)));
+        Assert.False(PcmConversion.CanWidenLosslessly(new WaveFormat(48000, 16, 1), new WaveFormat(48000, 16, 6)));
         Assert.False(PcmConversion.CanWidenLosslessly(new WaveFormat(48000, 16, 2), WaveFormat.CreateIeeeFloatWaveFormat(48000, 2)));
+    }
+
+    [Fact]
+    public void モノラルの曲は_ステレオのデバイスへ左右に複製して詰め替えられる()
+    {
+        Assert.True(PcmConversion.CanWidenLosslessly(new WaveFormat(48000, 16, 1), TestFormats.Pcm24In32(48000)));
+        Assert.Equal(2, PcmConversion.CopiesPerSample(new WaveFormat(48000, 16, 1), TestFormats.Pcm24In32(48000)));
+        Assert.Equal(1, PcmConversion.CopiesPerSample(new WaveFormat(48000, 16, 2), TestFormats.Pcm24In32(48000)));
+
+        byte[] destination = new byte[8];
+        int written = PcmConversion.Widen([0x34, 0x12], 2, destination, 4, copies: 2);
+
+        Assert.Equal(8, written);
+        Assert.Equal(new byte[] { 0, 0, 0x34, 0x12, 0, 0, 0x34, 0x12 }, destination);
     }
 
     internal static int ReadSample(ReadOnlySpan<byte> bytes) => bytes.Length switch
@@ -235,7 +250,7 @@ public class ExclusiveFormatResolverTests
     [InlineData(24, 96000, 2, "96000 Hz / 24-in-32 / 2 ch")]
     [InlineData(24, 192000, 2, "192000 Hz / 24-in-32 / 2 ch")]
     [InlineData(32, 48000, 2, "48000 Hz / 24-in-32 / 2 ch")]
-    [InlineData(16, 48000, 1, "48000 Hz / 16 bit / 1 ch")]
+    [InlineData(16, 48000, 1, "48000 Hz / 16 bit / 2 ch widen")]
     [InlineData(16, 88200, 2, "96000 Hz / 16 bit / 2 ch resample")]
     [InlineData(24, 88200, 2, "96000 Hz / 24-in-32 / 2 ch resample")]
     [InlineData(24, 176400, 2, "192000 Hz / 24-in-32 / 2 ch resample")]
@@ -357,6 +372,24 @@ public class ExclusiveFormatResolverTests
             new WaveFormat(44100, 16, 1), new RubixLikeDevice { AcceptMono = false }, Mix);
 
         Assert.Equal("44100 Hz / 16 bit / 2 ch widen", Describe(choice));
+    }
+
+    [Fact]
+    public void モノラルを受け付けると答えるステレオのデバイスでも_ステレオに広げる()
+    {
+        ExclusiveFormatChoice? choice = ExclusiveFormatResolver.Resolve(
+            new WaveFormat(44100, 16, 1), new RubixLikeDevice { AcceptMono = true }, Mix);
+
+        Assert.Equal("44100 Hz / 16 bit / 2 ch widen", Describe(choice));
+    }
+
+    [Fact]
+    public void モノラルのデバイスには_モノラルの曲をモノラルのまま渡す()
+    {
+        ExclusiveFormatChoice? choice = ExclusiveFormatResolver.Resolve(
+            new WaveFormat(44100, 16, 1), new Device(_ => true), WaveFormat.CreateIeeeFloatWaveFormat(44100, 1));
+
+        Assert.Equal("44100 Hz / 16 bit / 1 ch", Describe(choice));
     }
 
     [Fact]
@@ -774,22 +807,46 @@ public class BitPerfectPlaybackTests
         Assert.InRange(frames, 96000 - 200, 96000 + 4096);
     }
 
-    [Fact]
-    public void モノラルの曲をステレオのデバイスへ出すときは_左右に同じ音を出す()
+    [Theory]
+    [InlineData(1f)]
+    [InlineData(0.5f)]
+    public void モノラルの曲をステレオのデバイスへ出すときは_左右に同じ音を出す(float volume)
     {
-        Add("a", 16, channels: 1, frames: 1000);
+        RandomPcmDecoder decoder = Add("a", 16, channels: 1, frames: 1000);
         outputs.ExclusiveFormat = new WaveFormat(48000, 16, 2);
+        service.Volume = volume;
         service.Open("a");
         service.Play();
 
         int[] output = ReadOutput(1000);
 
-        Assert.False(service.OutputInfo!.BitPerfectCapable);
+        Assert.True(service.OutputInfo!.BitPerfectCapable);
+        Assert.Null(service.OutputInfo.NormalPathReason);
         Assert.Equal(2000, output.Length);
         for (int i = 0; i < output.Length; i += 2)
         {
             Assert.Equal(output[i], output[i + 1]);
         }
+        if (volume >= 1f)
+        {
+            Assert.True(service.IsBitPerfect);
+            Assert.Equal(decoder.Samples, output.Where((_, i) => i % 2 == 0));
+        }
+    }
+
+    [Fact]
+    public void モノラルの曲をより大きい入れ物のステレオへ出しても_左右とも値は変わらない()
+    {
+        RandomPcmDecoder decoder = Add("a", 24, channels: 1, frames: 1000);
+        outputs.ExclusiveFormat = TestFormats.Pcm24In32(48000);
+        service.Open("a");
+        service.Play();
+
+        int[] output = ReadOutput(1000);
+
+        Assert.True(service.IsBitPerfect);
+        Assert.Equal(decoder.Samples, output.Where((_, i) => i % 2 == 0).Select(value => value >> 8));
+        Assert.Equal(decoder.Samples, output.Where((_, i) => i % 2 == 1).Select(value => value >> 8));
     }
 
     [Fact]
@@ -894,7 +951,8 @@ public class BitPerfectPlaybackTests
     }
 
     [Theory]
-    [InlineData(16, 1, 16, 16, 2, "モノラルをステレオに変換")]
+    [InlineData(16, 1, 16, 16, 2, null)]
+    [InlineData(24, 1, 16, 16, 2, "モノラルをステレオに変換")]
     [InlineData(24, 2, 16, 16, 2, "24 bit を 16 bit に変換")]
     [InlineData(32, 2, 32, 24, 2, "32 bit を 24 bit に変換")]
     [InlineData(24, 2, 32, 24, 2, null)]

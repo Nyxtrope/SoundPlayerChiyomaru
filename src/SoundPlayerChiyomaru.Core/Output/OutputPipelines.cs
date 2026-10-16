@@ -64,7 +64,7 @@ public static class SharedModePipeline
 /// <summary>
 /// 排他モード用。デバイスの形式に合わせたバイト列を作る。バッファごとに、次の 2 つの経路のどちらかを通る。
 /// <list type="bullet">
-/// <item>ビットパーフェクト経路: デコード結果の整数 PCM を、値を変えずにデバイスの入れ物へ詰め替えるだけ。float を経由しない。</item>
+/// <item>ビットパーフェクト経路: デコード結果の整数 PCM を、値を変えずにデバイスの入れ物へ詰め替えるだけ（モノラルの曲をステレオで出すときは、左右に同じ値を入れる）。float を経由しない。</item>
 /// <item>通常経路: float にして音量を掛け、必要ならチャンネル数とサンプルレートを合わせてから、整数 PCM に戻す。</item>
 /// </list>
 /// 経路は音量と ReplayGain の有無で決まる。どちらも同じ再生元から読み、同じデバイスの形式で書くので、切り替えても出力は途切れない。
@@ -74,6 +74,7 @@ public sealed class ExclusiveModePipeline : IWaveProvider
     private readonly IPlaybackSource source;
     private readonly ISampleProvider normalPath;
     private readonly bool bitPerfectCapable;
+    private readonly int copiesPerSample;
     private readonly int deviceSampleBytes;
     private readonly int validBits;
     private readonly bool deviceIsFloat;
@@ -109,6 +110,9 @@ public sealed class ExclusiveModePipeline : IWaveProvider
         normalPath = stage;
 
         bitPerfectCapable = PcmConversion.CanWidenLosslessly(source.Format, WaveFormat);
+
+        // 出力を止めずに続ける曲は、チャンネル数が同じものに限られる（GaplessChain）。左右に複製するかは、ここで一度決めればよい。
+        copiesPerSample = PcmConversion.CopiesPerSample(source.Format, WaveFormat);
         NormalPathReason = DescribeNormalPathReason(source.Format.AsStandardWaveFormat(), choice);
 
         // 出力を止めずに続けられるのは、同じ経路でそのまま読み継げる曲だけ。ビットパーフェクトにできる構成なら、
@@ -151,7 +155,7 @@ public sealed class ExclusiveModePipeline : IWaveProvider
 
     private string? DescribeNormalPathReason(WaveFormat sourceFormat, ExclusiveFormatChoice choice)
     {
-        if (choice.ChannelsChanged)
+        if (choice.ChannelsChanged && !bitPerfectCapable)
         {
             return UiLanguage.Text("モノラルをステレオに変換", "mono converted to stereo");
         }
@@ -212,7 +216,8 @@ public sealed class ExclusiveModePipeline : IWaveProvider
         while (written < buffer.Length)
         {
             // 詰め替え元はデバイスの入れ物以下の大きさなので、デバイスの入れ物の大きさで確保しておけば足りる。
-            int samplesWanted = (buffer.Length - written) / deviceSampleBytes;
+            // 左右に複製するときは、曲のサンプルはデバイスのサンプルの半分だけ読む。
+            int samplesWanted = (buffer.Length - written) / deviceSampleBytes / copiesPerSample;
             if (pcmBuffer.Length < samplesWanted * deviceSampleBytes)
             {
                 pcmBuffer = new byte[samplesWanted * deviceSampleBytes];
@@ -229,7 +234,8 @@ public sealed class ExclusiveModePipeline : IWaveProvider
                 pcmBuffer.AsSpan(0, read),
                 format.BitsPerSample / 8,
                 buffer[written..],
-                deviceSampleBytes);
+                deviceSampleBytes,
+                copiesPerSample);
         }
         return written;
     }

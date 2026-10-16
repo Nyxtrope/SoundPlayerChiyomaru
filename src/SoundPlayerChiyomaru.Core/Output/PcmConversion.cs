@@ -8,7 +8,8 @@ public static class PcmConversion
 {
     /// <summary>
     /// その形式のサンプルを、値を変えずにデバイスの形式へ詰め替えられるか。
-    /// 16 / 24 / 32bit の整数 PCM で、ビット数がデバイスの有効ビット数以下、サンプルレートとチャンネル数が同じ場合。
+    /// 16 / 24 / 32bit の整数 PCM で、ビット数がデバイスの有効ビット数以下、サンプルレートが同じ場合。
+    /// チャンネル数は同じか、モノラルの曲をステレオのデバイスへ出す場合（左右に同じ値を入れる。<see cref="CopiesPerSample"/>）。
     /// </summary>
     public static bool CanWidenLosslessly(WaveFormat source, WaveFormat device)
     {
@@ -18,8 +19,12 @@ public static class PcmConversion
             && IsIntegerPcm(device)
             && standard.BitsPerSample <= ValidBitsOf(device)
             && standard.SampleRate == device.SampleRate
-            && standard.Channels == device.Channels;
+            && (standard.Channels == device.Channels || (standard.Channels == 1 && device.Channels == 2));
     }
+
+    /// <summary>詰め替えるときに、曲の 1 サンプルをデバイスの何チャンネルへ入れるか（モノラルの曲をステレオで出すときは 2）。</summary>
+    public static int CopiesPerSample(WaveFormat source, WaveFormat device) =>
+        source.Channels == 1 && device.Channels == 2 ? 2 : 1;
 
     /// <summary>デバイスの形式が整数 PCM か。</summary>
     public static bool IsIntegerPcm(WaveFormat format) =>
@@ -41,8 +46,9 @@ public static class PcmConversion
     /// <param name="sourceBytes">変換元の 1 サンプルのバイト数。</param>
     /// <param name="destination">変換先。サンプル数 × <paramref name="destinationBytes"/> 以上の長さが必要。</param>
     /// <param name="destinationBytes">変換先の 1 サンプルのバイト数。<paramref name="sourceBytes"/> 以上。</param>
+    /// <param name="copies">1 サンプルを続けて何回書くか。モノラルをステレオの左右に入れるときは 2。</param>
     /// <returns>書き込んだバイト数。</returns>
-    public static int Widen(ReadOnlySpan<byte> source, int sourceBytes, Span<byte> destination, int destinationBytes)
+    public static int Widen(ReadOnlySpan<byte> source, int sourceBytes, Span<byte> destination, int destinationBytes, int copies = 1)
     {
         if (destinationBytes < sourceBytes)
         {
@@ -50,7 +56,7 @@ public static class PcmConversion
         }
 
         int samples = source.Length / sourceBytes;
-        if (destinationBytes == sourceBytes)
+        if (destinationBytes == sourceBytes && copies == 1)
         {
             source[..(samples * sourceBytes)].CopyTo(destination);
             return samples * sourceBytes;
@@ -59,11 +65,15 @@ public static class PcmConversion
         int padding = destinationBytes - sourceBytes;
         for (int i = 0; i < samples; i++)
         {
-            Span<byte> target = destination.Slice(i * destinationBytes, destinationBytes);
-            target[..padding].Clear();
-            source.Slice(i * sourceBytes, sourceBytes).CopyTo(target[padding..]);
+            ReadOnlySpan<byte> sample = source.Slice(i * sourceBytes, sourceBytes);
+            for (int copy = 0; copy < copies; copy++)
+            {
+                Span<byte> target = destination.Slice((i * copies + copy) * destinationBytes, destinationBytes);
+                target[..padding].Clear();
+                sample.CopyTo(target[padding..]);
+            }
         }
-        return samples * destinationBytes;
+        return samples * copies * destinationBytes;
     }
 
     /// <summary>
