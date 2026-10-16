@@ -27,7 +27,7 @@ A lightweight, fast music player for Windows 11. Just drop in files or folders a
 
 ## Download
 
-Download `SoundPlayerChiyomaru-<version>-win-x64.zip` from [Releases](../../releases) and extract it anywhere. The `-symbols.zip` file is only for investigating crashes; you do not need it to use the app.
+Download `SoundPlayerChiyomaru-<version>-win-x64.zip` from [Releases](../../releases) and extract it to a folder of your own (rather than straight into the Downloads folder, where other downloaded files sit next to it). The `-symbols.zip` file is only for investigating crashes; you do not need it to use the app.
 
 The app is not signed, so Windows SmartScreen may show a warning the first time you start it. If it does, select "More info" and then "Run anyway".
 

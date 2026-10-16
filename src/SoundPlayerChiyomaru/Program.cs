@@ -28,6 +28,7 @@ static class Program
     static void Main(string[] args)
     {
         StartTimestamp = TimeProvider.System.GetTimestamp();
+        SystemDllLoading.Apply();
         Options = StartupOptions.Parse(args);
 
         // 計測用の起動は、利用者が普段使っているインスタンスと混ざらないよう単独で動かす。

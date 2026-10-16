@@ -60,6 +60,22 @@ public static class PlaylistFile
         return result;
     }
 
+    /// <summary>
+    /// プレイリストに、プレイリストファイル自身とは別のサーバーにあるかもしれない曲が書かれているか。
+    /// そうした曲を開くと、Windows がそのサーバーへ接続し、利用者の資格情報を送ることがある。開く前に確かめるために使う。
+    /// このコンピューターのドライブの曲と、プレイリストファイルと同じサーバーの曲は数えない
+    /// （後者は、ファイルを読んだ時点でそのサーバーに接続している）。どちらとも言えない書き方の曲は数える。
+    /// </summary>
+    /// <param name="playlistPath">プレイリストファイルの絶対パス。</param>
+    /// <param name="entries">プレイリストに書かれた曲（<see cref="ReadEntries"/> で解決済みの絶対パス）。</param>
+    public static bool ReachesOtherServers(string playlistPath, IEnumerable<string> entries)
+    {
+        string? own = NetworkPaths.ServerOf(playlistPath);
+        return entries.Any(entry =>
+            !NetworkPaths.IsOnLocalDrive(entry)
+            && !(own is not null && string.Equals(NetworkPaths.ServerOf(entry), own, StringComparison.OrdinalIgnoreCase)));
+    }
+
     /// <summary>M3U8（UTF-8、BOM なし）で書く。一時ファイル経由で置き換える。</summary>
     /// <param name="relativePaths">プレイリストファイルと同じドライブにある曲を、相対パスで書くか。</param>
     public static void Write(string path, IReadOnlyList<PlaylistItem> items, bool relativePaths)

@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Globalization;
 using System.Runtime.CompilerServices;
+using System.Runtime.ExceptionServices;
 using Avalonia.Media.Imaging;
 using Avalonia.Threading;
 using NAudio.Wave;
@@ -719,14 +720,18 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IDisposable
     public void OpenPaths(IReadOnlyList<string> paths)
     {
         bool playlistFile = paths.Count == 1 && PlaylistFile.IsPlaylistFile(paths[0]);
-        RunInOrder(paths, expand: !playlistFile, expanded => Run(() =>
+        RunInOrder(paths, expand: !playlistFile, (expanded, playlists) => Run(() =>
         {
             IReadOnlyList<PlaylistEntry> entries;
             string? file = null;
             if (playlistFile)
             {
+                if (playlists.ErrorOf(paths[0]) is { } error)
+                {
+                    ExceptionDispatchInfo.Throw(error);
+                }
                 file = Path.GetFullPath(paths[0]);
-                entries = PlaylistFile.ReadEntries(file);
+                entries = playlists.EntriesOf(paths[0]);
             }
             else
             {
@@ -757,7 +762,7 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IDisposable
     /// すでにプレイリストにある同じ曲。曲が 1 つもなければ null。
     /// </param>
     private void AddPaths(IReadOnlyList<string> paths, int? index, Action<IReadOnlyList<PlaylistItem>, PlaylistItem?> onAdded) =>
-        RunInOrder(paths, expand: true, expanded =>
+        RunInOrder(paths, expand: true, (expanded, _) =>
         {
             IReadOnlyList<PlaylistItem> added = [];
             PlaylistItem? first = null;
@@ -790,21 +795,32 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IDisposable
 
     /// <summary>
     /// 開く・追加で渡されたパスを曲のファイルの並びに展開して（<paramref name="expand"/> が false ならそのまま）、
-    /// <paramref name="apply"/> に渡す。前の展開が終わっていなければ、その後に行う（届いた順に反映する）。
+    /// 読んだプレイリストファイルと一緒に <paramref name="apply"/> に渡す。前の展開が終わっていなければ、その後に行う（届いた順に反映する）。
     /// フォルダを含むときは、中を探す処理を別のスレッドで行い、画面を止めない（ネットワーク上の大きなフォルダでも。SPEC 4.1）。
     /// 前の展開を待つ必要がなく、フォルダも含まないときは、この呼び出しの中で終わる（起動時に渡された曲は、すぐ再生を始められる）。
+    /// プレイリストファイルは最初に 1 回だけ読む。別のサーバーの曲が書かれていれば、展開する前に確かめ、取りやめたら何もしない（SPEC 5 章）。
     /// </summary>
-    private async void RunInOrder(IReadOnlyList<string> paths, bool expand, Action<IReadOnlyList<string>> apply)
+    private async void RunInOrder(IReadOnlyList<string> paths, bool expand, Action<IReadOnlyList<string>, PlaylistReads> apply)
     {
         try
         {
             await expandGate.WaitAsync();
             try
             {
-                IReadOnlyList<string> expanded = paths;
-                if (expand && paths.Any(Directory.Exists))
+                // フォルダを探すときは、プレイリストを読むのも別のスレッドで行う（画面を止めない）。
+                bool searchesFolders = expand && paths.Any(Directory.Exists);
+                PlaylistReads playlists = !paths.Any(PlaylistFile.IsPlaylistFile) ? PlaylistReads.None
+                    : searchesFolders ? await Task.Run(() => PlaylistReads.Read(paths))
+                    : PlaylistReads.Read(paths);
+                if (playlists.ReachesOtherServers && ConfirmNetworkPlaylist is { } confirm && !await confirm())
                 {
-                    Task<IReadOnlyList<string>> searching = Task.Run(() => expander.Expand(paths));
+                    return;
+                }
+
+                IReadOnlyList<string> expanded = paths;
+                if (searchesFolders)
+                {
+                    Task<IReadOnlyList<string>> searching = Task.Run(() => expander.Expand(paths, playlists));
                     if (await Task.WhenAny(searching, Task.Delay(SearchingNoticeDelay)) != searching)
                     {
                         NoticeText = SearchingNotice;
@@ -817,9 +833,9 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IDisposable
                 }
                 else if (expand)
                 {
-                    expanded = expander.Expand(paths);
+                    expanded = expander.Expand(paths, playlists);
                 }
-                apply(expanded);
+                apply(expanded, playlists);
             }
             finally
             {
@@ -836,6 +852,12 @@ public sealed class MainWindowViewModel : INotifyPropertyChanged, IDisposable
             ErrorText = UiLanguage.Text($"開けません: {ex.Message}", $"Cannot open: {ex.Message}");
         }
     }
+
+    /// <summary>
+    /// ネットワーク上のパスを含むプレイリストを開く前に、利用者に確かめる。開いてよいなら true を返す。
+    /// 画面の側が設定する（設定されていなければ確かめずに開く）。
+    /// </summary>
+    public Func<Task<bool>>? ConfirmNetworkPlaylist { get; set; }
 
     private static bool SamePath(string a, string b) => string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
 

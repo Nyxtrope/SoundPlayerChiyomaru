@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text;
 using SoundPlayerChiyomaru.Core.Playlists;
 using SoundPlayerChiyomaru.Core.Tags;
@@ -10,7 +11,7 @@ public abstract class TempDirectoryTest : IDisposable
 {
     protected string Root { get; } = Directory.CreateTempSubdirectory("chiyomaru-test-").FullName;
 
-    public void Dispose() => Directory.Delete(Root, recursive: true);
+    public virtual void Dispose() => Directory.Delete(Root, recursive: true);
 
     protected string At(params string[] parts) => Path.Combine([Root, .. parts]);
 
@@ -260,6 +261,157 @@ public class PathExpanderTests : TempDirectoryTest
         string result = Assert.Single(expander.Expand(["relative.mp3"]));
 
         Assert.Equal(Path.GetFullPath("relative.mp3"), result);
+    }
+
+    private readonly List<string> junctions = [];
+
+    /// <summary>ジャンクションは先に外す。付けたまま中ごと消そうとすると、リンク先までたどって失敗する。</summary>
+    public override void Dispose()
+    {
+        foreach (string junction in junctions.Where(Directory.Exists))
+        {
+            Directory.Delete(junction);
+        }
+        base.Dispose();
+    }
+
+    /// <summary>ジャンクションを作る（シンボリックリンクと違い、管理者の権限が要らない）。</summary>
+    private void Junction(string link, string target)
+    {
+        junctions.Add(link);
+        using Process process = Process.Start(new ProcessStartInfo("cmd.exe", ["/c", "mklink", "/J", link, target])
+        {
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+        })!;
+        process.StandardOutput.ReadToEnd();
+        process.WaitForExit();
+        Assert.True(Directory.Exists(link), "ジャンクションを作れませんでした。");
+    }
+
+    [Fact]
+    public async Task 上のフォルダを指すジャンクションがあっても_探索が終わり_ほかの曲は拾う()
+    {
+        string song = Touch("music", "a", "song.mp3");
+        Junction(At("music", "a", "loop1"), At("music"));
+        Junction(At("music", "a", "loop2"), At("music"));
+
+        // 循環をたどると終わらない（たどる道が分かれるたびに倍になる）。その場合は時間切れで失敗させる。
+        IReadOnlyList<string> found = await Task.Run(() => expander.Expand([At("music")])).WaitAsync(TimeSpan.FromSeconds(10));
+
+        Assert.Equal([song], found);
+    }
+
+    [Fact]
+    public void ジャンクションの中の曲は_親のフォルダからは拾わないが_ジャンクションそのものを渡せば拾う()
+    {
+        string own = Touch("music", "own.mp3");
+        Touch("elsewhere", "other.mp3");
+        Junction(At("music", "linked"), At("elsewhere"));
+
+        Assert.Equal([own], expander.Expand([At("music")]));
+        Assert.Equal([At("music", "linked", "other.mp3")], expander.Expand([At("music", "linked")]));
+    }
+}
+
+public class NetworkPathsTests : TempDirectoryTest
+{
+    [Theory]
+    [InlineData(@"\\nas\music\a.mp3", "nas")]
+    [InlineData(@"\\NAS.local\music", "NAS.local")]
+    [InlineData(@"\\?\UNC\nas\music\a.mp3", "nas")]
+    [InlineData(@"\\.\UNC\nas\music\a.mp3", "nas")]
+    [InlineData(@"\??\UNC\nas\music\a.mp3", "nas")]
+    [InlineData(@"\\?\GLOBALROOT\Device\Mup\nas\music\a.mp3", "nas")]
+    [InlineData(@"\\nas", "nas")]
+    [InlineData(@"C:\music\a.mp3", null)]
+    [InlineData(@"Z:\music\a.mp3", null)]
+    [InlineData(@"\\?\C:\music\a.mp3", null)]
+    [InlineData(@"\\.\COM1", null)]
+    [InlineData(@"\\", null)]
+    [InlineData(@"music\a.mp3", null)]
+    public void UNCパスのサーバー名を取り出す(string path, string? expected)
+    {
+        Assert.Equal(expected, NetworkPaths.ServerOf(path));
+    }
+
+    [Theory]
+    [InlineData(@"C:\music\a.mp3", true)]
+    [InlineData(@"z:/music/a.mp3", true)]
+    [InlineData(@"\\?\C:\music\a.mp3", true)]
+    [InlineData(@"\\.\C:\music\a.mp3", true)]
+    [InlineData(@"\\nas\music\a.mp3", false)]
+    [InlineData(@"\\?\GLOBALROOT\Device\HarddiskVolume1\a.mp3", false)]
+    [InlineData(@"\\?\Volume{00000000-0000-0000-0000-000000000000}\a.mp3", false)]
+    [InlineData(@"\\.\COM1", false)]
+    [InlineData(@"C:", false)]
+    public void ドライブ文字のパスだけを_このコンピューターのものとして扱う(string path, bool expected)
+    {
+        Assert.Equal(expected, NetworkPaths.IsOnLocalDrive(path));
+    }
+
+    [Fact]
+    public void ドライブのパスでも同じサーバーでもない曲があれば_別のサーバーに届く()
+    {
+        Assert.False(PlaylistFile.ReachesOtherServers(@"C:\list.m3u8", [@"C:\music\a.mp3", @"D:\b.mp3"]));
+        Assert.True(PlaylistFile.ReachesOtherServers(@"C:\list.m3u8", [@"C:\music\a.mp3", @"\\evil\share\b.mp3"]));
+        Assert.True(PlaylistFile.ReachesOtherServers(@"C:\list.m3u8", [@"\\.\UNC\evil\share\b.mp3"]));
+        Assert.True(PlaylistFile.ReachesOtherServers(@"C:\list.m3u8", [@"\??\UNC\evil\share\b.mp3"]));
+        Assert.True(PlaylistFile.ReachesOtherServers(@"C:\list.m3u8", [@"\\?\GLOBALROOT\Device\Mup\evil\share\b.mp3"]));
+        Assert.False(PlaylistFile.ReachesOtherServers(@"C:\list.m3u8", []));
+    }
+
+    [Fact]
+    public void プレイリストと同じサーバーの曲は_別のサーバーとは数えない()
+    {
+        Assert.False(PlaylistFile.ReachesOtherServers(@"\\nas\music\list.m3u8", [@"\\nas\music\a.mp3", @"\\NAS\other\b.mp3", @"C:\c.mp3"]));
+        Assert.False(PlaylistFile.ReachesOtherServers(@"\\nas\music\list.m3u8", [@"\\?\UNC\nas\music\a.mp3"]));
+        Assert.True(PlaylistFile.ReachesOtherServers(@"\\nas\music\list.m3u8", [@"\\nas\music\a.mp3", @"\\evil\share\b.mp3"]));
+    }
+
+    [Fact]
+    public void プレイリストを1回だけ読み_書き方を問わずネットワーク上の曲に気づく()
+    {
+        string local = At("local.m3u8");
+        File.WriteAllLines(local, ["#EXTM3U", @"C:\music\a.mp3", "b.mp3"]);
+        string url = At("url.m3u");
+        File.WriteAllLines(url, ["file://evil/share/c.mp3"]);
+        string pls = At("list.pls");
+        File.WriteAllLines(pls, ["[playlist]", @"File1=\\evil\share\d.mp3"]);
+        string device = At("device.m3u8");
+        File.WriteAllLines(device, [@"\\.\UNC\evil\share\e.mp3"]);
+
+        Assert.False(PlaylistReads.Read([local]).ReachesOtherServers);
+        Assert.True(PlaylistReads.Read([local, url]).ReachesOtherServers);
+        Assert.True(PlaylistReads.Read([pls]).ReachesOtherServers);
+        Assert.True(PlaylistReads.Read([device]).ReachesOtherServers);
+    }
+
+    [Fact]
+    public void 読んだ後でファイルが書き換えられても_展開には読んだときの中身を使う()
+    {
+        string list = At("list.m3u8");
+        File.WriteAllLines(list, [@"C:\music\a.mp3"]);
+        PlaylistReads reads = PlaylistReads.Read([list]);
+        File.WriteAllLines(list, [@"\\evil\share\b.mp3"]);
+
+        Assert.Equal([@"C:\music\a.mp3"], new PathExpander([".mp3"]).Expand([list], reads));
+        Assert.Equal([@"C:\music\a.mp3"], reads.EntriesOf(list).Select(entry => entry.Path));
+    }
+
+    [Fact]
+    public void 読めないプレイリストは理由を覚え_中身は空として扱う()
+    {
+        string missing = At("missing.m3u8");
+        Directory.CreateDirectory(At("folder.m3u8"));
+
+        PlaylistReads reads = PlaylistReads.Read([missing, At("folder.m3u8"), At("song.mp3")]);
+
+        Assert.IsAssignableFrom<IOException>(reads.ErrorOf(missing));
+        Assert.Empty(reads.EntriesOf(missing));
+        Assert.Null(reads.ErrorOf(At("folder.m3u8")));
+        Assert.False(reads.ReachesOtherServers);
     }
 }
 

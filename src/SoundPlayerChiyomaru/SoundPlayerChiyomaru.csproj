@@ -13,7 +13,7 @@
       埋め込まれたものが使われる（Window.Icon は設定しない。設定するには同じ画像をアプリのリソースとしても持つ必要がある）。
     -->
     <ApplicationIcon>app.ico</ApplicationIcon>
-    <Version>0.1.0</Version>
+    <Version>0.1.1</Version>
     <Authors>Nyxtrope / yukino</Authors>
     <Copyright>Copyright (c) 2026 Nyxtrope (yukino)</Copyright>
     <!-- MainWindow は依存を引数で受け取るため公開の既定コンストラクタを持たない。実行時ローダーからは生成しないので問題ない。 -->
@@ -46,6 +46,15 @@
   -->
   <ItemGroup>
     <IlcArg Include="--runtimeopt:GCgen0size=800000" />
+  </ItemGroup>
+
+  <!--
+    起動時に直接読み込む DLL（bcrypt.dll、Secur32.dll など）を、System32 からだけ読む（0x800 = LOAD_LIBRARY_SEARCH_SYSTEM32）。
+    指定しないと実行ファイルのフォルダが先に探されるので、展開先に同じ名前の DLL が置かれていると、それが読み込まれる。
+    起動後に読み込む DLL は SystemDllLoading で絞る。
+  -->
+  <ItemGroup>
+    <LinkerArg Include="/DEPENDENTLOADFLAG:0x800" />
   </ItemGroup>
 
 </Project>

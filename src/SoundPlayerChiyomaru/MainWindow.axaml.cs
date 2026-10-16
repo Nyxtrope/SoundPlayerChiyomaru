@@ -116,6 +116,7 @@ public partial class MainWindow : Window
         viewModel.CurrentItemChanged += OnCurrentItemChanged;
         viewModel.ColumnsChanged += OnColumnsChanged;
         viewModel.PropertyChanged += OnViewModelPropertyChanged;
+        viewModel.ConfirmNetworkPlaylist = ConfirmNetworkPlaylist;
         ApplyColumns(ColumnHeader);
         UpdateModeIcon();
 
@@ -754,6 +755,59 @@ public partial class MainWindow : Window
         {
             viewModel.ModeIndex = int.Parse(tag, CultureInfo.InvariantCulture);
         }
+    }
+
+    /// <summary>
+    /// ネットワーク上のパスを含むプレイリストを開くかを確かめる（SPEC 5 章）。めったに出ないので、出すときに組み立てる。
+    /// 安全な側に倒すため、既定のボタン（Enter）とフォーカスは「キャンセル」に置く。閉じるボタンや Esc でもキャンセルになる。
+    /// </summary>
+    private Task<bool> ConfirmNetworkPlaylist()
+    {
+        var open = new Button { Content = UiLanguage.Text("開く", "Open"), MinWidth = 80 };
+        var cancel = new Button { Content = UiLanguage.Text("キャンセル", "Cancel"), MinWidth = 80, IsDefault = true, IsCancel = true };
+        var dialog = new Window
+        {
+            Title = "S:P Chiyomaru",
+            SizeToContent = SizeToContent.WidthAndHeight,
+            CanResize = false,
+            CanMinimize = false,
+            CanMaximize = false,
+            ShowInTaskbar = false,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Content = new StackPanel
+            {
+                Margin = new Thickness(24, 20),
+                Spacing = 20,
+                MaxWidth = 440,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = UiLanguage.Text(
+                            "ネットワーク上のパスを含むプレイリストを開こうとしています。このまま開きますか？",
+                            "You are about to open a playlist that contains network paths. Open it anyway?"),
+                        TextWrapping = TextWrapping.Wrap,
+                    },
+                    new StackPanel
+                    {
+                        Orientation = Avalonia.Layout.Orientation.Horizontal,
+                        HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Right,
+                        Spacing = 8,
+                        Children = { open, cancel },
+                    },
+                },
+            },
+        };
+        open.Click += (_, _) => dialog.Close(true);
+        cancel.Click += (_, _) => dialog.Close(false);
+        dialog.Opened += (_, _) => cancel.Focus();
+
+        // 最小化したまま別のプロセスから開かれた場合も、確認が見えるように元の大きさに戻す。
+        if (WindowState == WindowState.Minimized)
+        {
+            WindowState = stateBeforeMinimize;
+        }
+        return dialog.ShowDialog<bool>(this);
     }
 
     private void OnSettingsClick(object? sender, RoutedEventArgs e) => ShowSettings();
